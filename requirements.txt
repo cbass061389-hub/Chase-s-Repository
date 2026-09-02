@@ -1,0 +1,13 @@
+# Phase 0 (discovery) — the only hard requirement. Everything else in the
+# discovery path is standard library, so the sweep runs on a locked-down
+# laptop with a single install.
+PyYAML>=6.0
+
+# Phase 1 (canonical model) — needed to import sc/models.py.
+pydantic>=2.0
+
+# Phases 2+ (extract, normalize, warehouse). Not yet imported by any code.
+# pandas>=2.0
+# pyarrow>=14.0
+# openpyxl>=3.1        # structure fallback only; the probes are zip-level
+# pywin32>=306 ; sys_platform == "win32"   # Excel COM refresh driver (Phase 3)

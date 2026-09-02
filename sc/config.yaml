@@ -1,0 +1,185 @@
+# ==========================================================================
+# Supply Chain Reference & Update Engine — single source of configuration.
+# No path, threshold or source name belongs anywhere but this file.
+# ==========================================================================
+
+project:
+  name: "Predator Group Supply Chain Engine"
+  timezone: "America/New_York"
+
+# --------------------------------------------------------------------------
+# PHASE 0 — DISCOVERY SWEEP
+# --------------------------------------------------------------------------
+discovery:
+  # Roots to sweep. ${VAR} is expanded from the environment; ~ is expanded.
+  # auto_detect_onedrive adds every "${USERPROFILE}/OneDrive*" directory found,
+  # so the tool survives the tenant renaming the OneDrive folder.
+  roots:
+    - "${USERPROFILE}/OneDrive - Predator Group"
+  auto_detect_onedrive: true
+  extra_roots: []            # local repo / prototype folders, added verbatim
+
+  extensions: [".xlsx", ".xlsm", ".xlsb", ".xltx", ".xltm", ".csv"]
+
+  # Directory names excluded anywhere in the path (case-insensitive, exact segment).
+  skip_dirs:
+    - "Archive"
+    - "Archived"
+    - "OLD"
+    - "Old Versions"
+    - "Backup"
+    - "Backups"
+    - "Temp"
+    - "tmp"
+    - "node_modules"
+    - ".git"
+    - "__pycache__"
+    - ".venv"
+    - "venv"
+    - "Recycle Bin"
+
+  # Filename patterns excluded (fnmatch, case-insensitive).
+  skip_file_globs:
+    - "~$*"                  # Excel lock files
+    - "*.tmp"
+    - "*Conflict*"           # OneDrive conflict copies
+    - "*-Copy.xls*"
+    - "*Copy of *"
+
+  max_file_mb: 400           # probed for structure only above this size
+  csv_sniff_bytes: 65536     # bytes read from a CSV to infer header + delimiter
+  hash_sample_bytes: 1048576 # head+tail bytes hashed for cheap duplicate detection
+  row_count_cap: 2000000     # stop counting rows past this (protects on junk sheets)
+
+  # Two sheets in different files whose normalized header sets overlap by at
+  # least this Jaccard ratio are reported as a potential duplicate-truth pair.
+  header_overlap_threshold: 0.70
+  header_overlap_min_columns: 4
+
+  # Domain tagging. First match wins in listed order, evaluated against the
+  # full path + sheet names + table names, case-insensitive.
+  domains:
+    in_transit:      ["in transit", "in-transit", "intransit", "container", "etd", "eta", "bill of lading", "bol ", "pol", "pod"]
+    open_po:         ["items on purchase order", "open po", "open_po", "purchase order", "po status", "on order"]
+    inventory:       ["inventory", "on hand", "onhand", "stock status", "overstock", "static inventory", "dead stock"]
+    allocation:      ["allocation", "go/no-go", "go no go", "gonogo", "np allocation", "hq lock", "launch control"]
+    dsr:             ["direct shipment", "dsr", "shipment request form"]
+    production:      ["production", "shipment_request", "shipment request", "work order", "wo status", "revo", "rework", "release log"]
+    demand:          ["forecast", "bk plan", "demand", "sales plan", "s&op", "sop plan"]
+    quality:         ["quality", "inspection", "pre-shipment", "preshipment", "defect", "reject", "car log", "corrective action"]
+    tariff:          ["tariff", "duty", "hts", "trade lane", "section 301"]
+    reference:       ["master_reference", "master reference", "item master", "item_pricing", "so_data", "sku master"]
+    supplier:        ["vendor", "supplier", "hie", "hamson", "jingdian", "yalin", "shandong", "box billiards", "apollo"]
+    platform:        ["real-data", "connector-layer", "app-config", "staticwebapp", "dax", "netsuite export"]
+
+  # Seed list from the build spec. Presence is CONFIRMED against the sweep —
+  # never assumed. `patterns` are fnmatch globs against the filename only.
+  seeds:
+    - id: sc_update_meeting
+      domain: inventory
+      label: "Supply Chain Update Meeting Workbook"
+      patterns: ["Supply_Chain_Update_Meeting_Workbook.xlsm", "*Supply*Chain*Update*Meeting*.xls*"]
+    - id: sc_analysis_py
+      domain: inventory
+      label: "sc_analysis.py companion script"
+      patterns: ["sc_analysis.py"]
+    - id: overstock
+      domain: inventory
+      label: "Overstock / static inventory workbook"
+      patterns: ["*Overstock*.xls*", "*Static*Inventory*.xls*"]
+    - id: items_on_po
+      domain: open_po
+      label: "NetSuite Items on Purchase Order export"
+      patterns: ["*Items*on*Purchase*Order*", "*ItemsOnPurchaseOrder*"]
+    - id: in_transit
+      domain: in_transit
+      label: "In Transit workbook"
+      patterns: ["*In*Transit*.xls*", "*InTransit*.xls*"]
+    - id: dsr_tool
+      domain: dsr
+      label: "Direct Shipment Request tool"
+      patterns: ["*Direct*Shipment*.xls*", "*DSR*.xls*"]
+    - id: np_go_nogo
+      domain: allocation
+      label: "NP Go/No-Go tool + allocation table"
+      patterns: ["*Go*No*Go*.xls*", "*NP*Allocation*.xls*"]
+    - id: shipment_request_hie
+      domain: production
+      label: "Shipment_Request_HIE"
+      patterns: ["Shipment_Request_HIE*", "*Shipment*Request*HIE*"]
+    - id: shipment_consolidation
+      domain: production
+      label: "Shipment_Request_Consolidation"
+      patterns: ["Shipment_Request_Consolidation*", "*Shipment*Request*Consol*"]
+    - id: revo_production
+      domain: production
+      label: "REVO production + projected inventory model"
+      patterns: ["*REVO*.xls*"]
+    - id: master_reference
+      domain: reference
+      label: "Master_Reference.xlsx (SO_Data, Item master, Item_Pricing)"
+      patterns: ["Master_Reference.xls*", "*Master*Reference*.xls*"]
+    - id: bk_plan
+      domain: demand
+      label: "BK Plan forecast"
+      patterns: ["*BK*Plan*"]
+    - id: quality_logs
+      domain: quality
+      label: "Pre-shipment inspection / reject / CAR logs"
+      patterns: ["*Inspection*.xls*", "*Quality*.xls*", "*CAR*Log*.xls*"]
+    - id: tariff
+      domain: tariff
+      label: "Tariff workbook by trade lane and category"
+      patterns: ["*Tariff*.xls*"]
+    - id: build_realdata
+      domain: platform
+      label: "Build-RealData.ps1"
+      patterns: ["Build-RealData.ps1"]
+    - id: prod_visibility_py
+      domain: production
+      label: "build_production_visibility.py"
+      patterns: ["build_production_visibility.py"]
+    - id: export_dashboard_py
+      domain: platform
+      label: "export_dashboard_data.py"
+      patterns: ["export_dashboard_data.py"]
+
+  # Thresholds that decide "true source" vs "calculated output". A workbook
+  # that recomputes more than it holds is a report, not a source of record.
+  role_heuristics:
+    heavy_formula_count: 500
+    heavy_formulas_per_row: 1.0
+
+  # Non-workbook assets worth recording when encountered under a root.
+  companion_extensions: [".py", ".ps1", ".js", ".json", ".m", ".dax", ".pbix", ".pbit"]
+
+# --------------------------------------------------------------------------
+# OUTPUT LOCATIONS (repo-relative unless absolute)
+# --------------------------------------------------------------------------
+paths:
+  discovery_dir: "discovery"
+  queries_dir: "queries"         # version-controlled Power Query M
+  warehouse_dir: "data/warehouse"
+  work_dir: "work"               # copies of source workbooks; originals never touched
+  runs_dir: "runs"
+
+# --------------------------------------------------------------------------
+# BUSINESS THRESHOLDS — carried forward from the existing workbook logic.
+# Referenced by Phase 1+ derived metrics. Listed here so they are auditable
+# in one place rather than buried in formulas.
+# --------------------------------------------------------------------------
+thresholds:
+  overstock_months_supply: 8.0
+  dead_stock_forecast_units: 0
+  forecast_confidence_lookback_months: 3
+  snapshot_stale_days: 7
+  abc_basis: "revenue"           # never units
+  abc_cutoffs: { a: 0.80, b: 0.95 }
+  worst_flag_hierarchy:
+    - "CAPITAL TRAP"
+    - "MOSTLY DEAD"
+    - "AT RISK"
+    - "OVERSTOCK"
+    - "LOW CONFIDENCE"
+    - "OVER-FORECASTED"
+    - "MONITOR"
