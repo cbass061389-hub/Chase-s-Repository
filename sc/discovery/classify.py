@@ -70,6 +70,15 @@ def normalize_location(location: str) -> str:
 
 PATH_MATCH_WEIGHT: int = 3
 
+#: Key matches below this score are guesses and must be reported as such.
+CONFIRM_THRESHOLD: float = 0.70
+
+#: A single fragility rule contributes at most this many times to the risk score.
+RISK_RULE_CAP: int = 3
+
+#: Maximum risk contribution from hidden sheets, however many there are.
+HIDDEN_SHEET_SCORE_CAP: int = 24
+
 ROLE_TRUE_SOURCE: str = "true_source"
 ROLE_DERIVED_COPY: str = "derived_copy"
 ROLE_CALCULATED_OUTPUT: str = "calculated_output"
@@ -88,35 +97,67 @@ def header_signature(headers: Iterable[str]) -> Set[str]:
 
 
 def detect_key_fields(headers: Sequence[str]) -> Dict[str, str]:
-    """Map each detected key role to the actual header that satisfied it.
+    """Map each detected key role to the header that satisfied it."""
+    return {role: detail["header"] for role, detail in detect_key_fields_scored(headers).items()}
 
-    Exact normalized matches beat substring matches, so a column literally named
-    "Item" wins over "Item Description" for the ``sku`` role.
+
+def detect_key_fields_scored(headers: Sequence[str]) -> Dict[str, Dict[str, object]]:
+    """Key detection with a score and confidence label per role.
+
+    Real headers punish naive matching. "Qty on PO" contains the token "po", so
+    a first-match-wins scan registers it as the purchase-order key when it is
+    plainly a quantity. Two things fix that:
+
+    * **Scoring by specificity.** An exact match beats a leading-token match,
+      which beats a token found mid-header; a multi-word pattern scores above a
+      single-word one.
+    * **Greedy assignment.** Each header can satisfy at most one role, and the
+      highest-scoring claim wins, so "Qty on PO" is taken by ``quantity`` and
+      ``po_number`` has to find a better candidate or go unfilled.
+
+    Anything below CONFIRM_THRESHOLD is labelled ``needs_confirmation`` and must
+    be reported as a guess, not as a fact.
     """
-    candidates: List[Tuple[str, List[str], str]] = [
-        (normalize_header(h), _tokenize(h), h) for h in headers if str(h).strip()
-    ]
-    found: Dict[str, str] = {}
-    for role, patterns in KEY_PATTERNS.items():
-        exact_targets: List[str] = [normalize_header(p) for p in patterns]
-        exact: Optional[str] = next(
-            (original for norm, _tokens, original in candidates if norm in exact_targets), None
-        )
-        if exact is not None:
-            found[role] = exact
+    candidates: List[Tuple[float, str, str, str]] = []
+    for header in headers:
+        if not str(header).strip():
             continue
-        token_targets: List[List[str]] = [_tokenize(p) for p in patterns]
-        partial: Optional[str] = next(
-            (
-                original
-                for _norm, tokens, original in candidates
-                if any(target and _contains_tokens(tokens, target) for target in token_targets)
-            ),
-            None,
-        )
-        if partial is not None:
-            found[role] = partial
-    return found
+        header_tokens: List[str] = _tokenize(header)
+        header_flat: str = normalize_header(header)
+        for role, patterns in KEY_PATTERNS.items():
+            best: Tuple[float, str] = (0.0, "")
+            for pattern in patterns:
+                pattern_tokens: List[str] = _tokenize(pattern)
+                if not pattern_tokens:
+                    continue
+                if header_flat == normalize_header(pattern) or header_tokens == pattern_tokens:
+                    score, kind = 1.0, "exact"
+                elif header_tokens[: len(pattern_tokens)] == pattern_tokens:
+                    score, kind = 0.75, "leading"
+                elif _contains_tokens(header_tokens, pattern_tokens):
+                    score, kind = 0.55, "contained"
+                else:
+                    continue
+                score += 0.08 * (len(pattern_tokens) - 1)      # specificity bonus
+                if score > best[0]:
+                    best = (score, kind)
+            if best[0] > 0:
+                candidates.append((best[0], role, str(header), best[1]))
+
+    candidates.sort(key=lambda item: (-item[0], item[1], item[2]))
+    assigned: Dict[str, Dict[str, object]] = {}
+    used_headers: set[str] = set()
+    for score, role, header, kind in candidates:
+        if role in assigned or header in used_headers:
+            continue
+        assigned[role] = {
+            "header": header,
+            "score": round(min(score, 1.0), 3),
+            "match": kind,
+            "needs_confirmation": score < CONFIRM_THRESHOLD,
+        }
+        used_headers.add(header)
+    return assigned
 
 
 def _tokenize(value: str) -> List[str]:
@@ -323,12 +364,25 @@ def assess_dependency_risk(
     score: int = 0
     findings: List[str] = []
 
+    # Aggregate per rule rather than per location. Eleven NetSuite exports are
+    # eleven dependencies but not eleven distinct fragilities, and scoring each
+    # one separately pushes every query-driven workbook to "critical", which
+    # makes the band useless for ranking.
+    matched: Dict[str, List[str]] = {}
     for location in locations:
-        for pattern, message, weight in FRAGILE_LOCATION_RULES:
-            if re.search(pattern, normalize_location(location)):
-                score += weight
-                findings.append(f"{message} -> {location}")
+        normalized: str = normalize_location(location)
+        for pattern, message, _weight in FRAGILE_LOCATION_RULES:
+            if re.search(pattern, normalized):
+                matched.setdefault(message, []).append(location)
                 break
+
+    for pattern, message, weight in FRAGILE_LOCATION_RULES:
+        hits: List[str] = matched.get(message, [])
+        if not hits:
+            continue
+        score += weight * min(len(hits), RISK_RULE_CAP)
+        suffix: str = f" ({len(hits)} locations, e.g. {hits[0]})" if len(hits) > 1 else f" -> {hits[0]}"
+        findings.append(f"{message}{suffix}")
 
     if has_vba:
         score += 10
@@ -337,8 +391,13 @@ def assess_dependency_risk(
         score += 10
         findings.append("VBA project is password-protected — logic cannot be reviewed or ported")
     if hidden_sheet_count:
-        score += 3 * hidden_sheet_count
-        findings.append(f"{hidden_sheet_count} hidden sheet(s) — staging logic a reader must not miss")
+        # Capped for the same reason as the location rules: 51 hidden sheets is
+        # one finding about one workbook, not 51 independent risks, and linear
+        # scaling lets sheet count swamp everything else in the score.
+        score += min(3 * hidden_sheet_count, HIDDEN_SHEET_SCORE_CAP)
+        findings.append(
+            f"{hidden_sheet_count} hidden sheet(s) — staging logic a reader must not miss"
+        )
     if row_count_capped:
         score += 15
         findings.append("row count hit the configured cap — file is larger than the probe scanned")

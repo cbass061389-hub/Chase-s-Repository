@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import zipfile
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Set, Tuple
 from xml.etree import ElementTree as ET
 
 from .ooxml import (
@@ -53,6 +53,8 @@ class SheetProbe:
     state: str = "visible"            # visible | hidden | veryHidden
     dimension: str = ""
     row_count: int = 0
+    rows_with_values: int = 0
+    value_rows_in_scan_window: Set[int] = field(default_factory=set)
     row_count_capped: bool = False
     max_column_index: int = -1
     formula_count: int = 0
@@ -69,10 +71,19 @@ class SheetProbe:
 
     @property
     def data_row_estimate(self) -> int:
-        """Rows below the detected header — the usable record count."""
+        """Usable record count: rows holding values, below the detected header.
+
+        Uses rows_with_values rather than the physical row count. A sheet padded
+        to Excel's row limit by formatting reports 1,048,576 physical rows and
+        almost no data; subtracting the header from that number is nonsense.
+        """
+        basis: int = self.rows_with_values or self.row_count
         if self.header_row is None:
-            return max(self.row_count, 0)
-        return max(self.row_count - self.header_row, 0)
+            return max(basis, 0)
+        # Subtract only the value-bearing rows at or above the header, so a
+        # count of populated rows is never reduced by a physical row index.
+        consumed: int = sum(1 for row in self.value_rows_in_scan_window if row <= self.header_row)
+        return max(basis - consumed, 0)
 
 
 @dataclass
@@ -223,6 +234,7 @@ def _probe_sheet(
                 physical_row += 1
                 declared: str = element.get("r", "")
                 row_number: int = int(declared) if declared.isdigit() else physical_row
+                row_has_value: bool = False
 
                 for cell in element.findall(cell_tag):
                     col: int = column_index(cell_column_letters(cell.get("r")))
@@ -233,11 +245,17 @@ def _probe_sheet(
                         sheet.formula_count += 1
                         if formula.get("t") == "shared":
                             sheet.shared_formula_count += 1
+                    if cell.find(value_tag) is not None or cell.find(inline_tag) is not None:
+                        row_has_value = True
                     if row_number <= HEADER_SCAN_ROWS:
                         text: str = _cell_text(cell, shared, value_tag, inline_tag, text_tag)
                         if text != "":
                             scanned.setdefault(row_number, {})[col if col >= 0 else 0] = text
 
+                if row_has_value:
+                    sheet.rows_with_values += 1
+                    if row_number <= HEADER_SCAN_ROWS:
+                        sheet.value_rows_in_scan_window.add(row_number)
                 element.clear()
                 if physical_row >= row_cap:
                     sheet.row_count_capped = True

@@ -20,7 +20,9 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 from ..configuration import Config
 from . import classify
 from .csv_probe import CsvProbe, probe_csv
-from .datamashup import MashupProbe, probe_mashup
+from .datamashup import MashupProbe, find_data_model_parts, probe_mashup
+from .lineage import LineageFindings, build_lineage
+from .redact import Redactor
 from .ooxml import NotAnOoxmlPackage, open_workbook
 from .vba import VbaProbe, probe_vba
 from .workbook_probe import WorkbookProbe, probe_workbook
@@ -41,6 +43,7 @@ class SheetRecord:
     name: str
     state: str
     rows: int
+    rows_with_values: int
     data_rows: int
     columns: int
     formulas: int
@@ -50,6 +53,10 @@ class SheetRecord:
     tables: List[Dict[str, str]] = field(default_factory=list)
     rows_capped: bool = False
     key_fields: Dict[str, str] = field(default_factory=dict)
+    key_detail: Dict[str, Dict[str, object]] = field(default_factory=dict)
+    domain: str = "unclassified"
+    grain: str = ""
+    bloated: bool = False
     error: Optional[str] = None
 
 
@@ -83,6 +90,9 @@ class SourceRecord:
     external_links: List[str] = field(default_factory=list)
     external_locations: List[Dict[str, str]] = field(default_factory=list)
     vba: Dict[str, Any] = field(default_factory=dict)
+    data_model_parts: int = 0
+    query_dependencies: List[Dict[str, str]] = field(default_factory=list)
+    redactions: List[Dict[str, str]] = field(default_factory=list)
     risk_score: int = 0
     risk_band: str = "low"
     risk_findings: List[str] = field(default_factory=list)
@@ -109,6 +119,12 @@ class DiscoveryResult:
     query_files_written: List[str] = field(default_factory=list)
     query_diffs: List[Dict[str, str]] = field(default_factory=list)
     skipped: List[Dict[str, str]] = field(default_factory=list)
+    lineage_cycles: List[List[str]] = field(default_factory=list)
+    forked_upstreams: List[Dict[str, Any]] = field(default_factory=list)
+    version_skew: List[Dict[str, Any]] = field(default_factory=list)
+    unresolved_references: List[Dict[str, str]] = field(default_factory=list)
+    upstream_edges: List[Dict[str, str]] = field(default_factory=list)
+    redactions: List[Dict[str, str]] = field(default_factory=list)
 
     @property
     def counts(self) -> Dict[str, int]:
@@ -122,6 +138,10 @@ class DiscoveryResult:
             "power_query_workbooks": sum(1 for s in self.sources if s.power_query.get("query_count")),
             "vba_workbooks": sum(1 for s in self.sources if s.vba.get("present")),
             "duplicate_truth_pairs": len(self.overlaps),
+            "lineage_cycles": len(self.lineage_cycles),
+            "forked_upstreams": len(self.forked_upstreams),
+            "version_skew": len(self.version_skew),
+            "secrets_redacted": sum(int(r["occurrences"]) for r in self.redactions),
             "seeds_missing": sum(1 for s in self.seed_status if not s["found"]),
             "skipped": len(self.skipped),
             **{f"kind_{k}": v for k, v in sorted(by_kind.items())},
@@ -241,10 +261,13 @@ def _probe_ooxml(record: SourceRecord, config: Config) -> Tuple[WorkbookProbe, M
     with open_workbook(record.path) as zf:
         mashup: MashupProbe = probe_mashup(zf)
         vba: VbaProbe = probe_vba(zf)
+        record.data_model_parts = len(find_data_model_parts(zf))
     return probe, mashup, vba
 
 
-def probe_source(record: SourceRecord, config: Config) -> Tuple[SourceRecord, Optional[MashupProbe]]:
+def probe_source(
+    record: SourceRecord, config: Config, redactor: Optional[Redactor] = None
+) -> Tuple[SourceRecord, Optional[MashupProbe]]:
     """Fill a record from the file on disk. Never raises; failures land in ``errors``."""
     disc = config.discovery
     mashup: Optional[MashupProbe] = None
@@ -263,7 +286,7 @@ def probe_source(record: SourceRecord, config: Config) -> Tuple[SourceRecord, Op
             record.sheets = [
                 SheetRecord(
                     name="(flat file)", state="visible", rows=csv_result.row_count,
-                    data_rows=csv_result.row_count, columns=csv_result.column_count,
+                    rows_with_values=csv_result.row_count, data_rows=csv_result.row_count, columns=csv_result.column_count,
                     formulas=0, header_row=1, header_confidence=1.0 if csv_result.headers else 0.0,
                     headers=csv_result.headers, rows_capped=csv_result.row_count_capped,
                     error=csv_result.error,
@@ -292,6 +315,7 @@ def probe_source(record: SourceRecord, config: Config) -> Tuple[SourceRecord, Op
                 record.sheets.append(
                     SheetRecord(
                         name=sheet.name, state=sheet.state, rows=sheet.row_count,
+                        rows_with_values=sheet.row_count,
                         data_rows=max(sheet.row_count - (sheet.header_row or 0), 0),
                         columns=sheet.last_column + 1, formulas=sheet.formula_count,
                         header_row=sheet.header_row, header_confidence=1.0 if sheet.headers else 0.0,
@@ -305,11 +329,15 @@ def probe_source(record: SourceRecord, config: Config) -> Tuple[SourceRecord, Op
             # .xlsb still stores Power Query and VBA as package parts.
             with open_workbook(record.path) as zf:
                 mashup = probe_mashup(zf)
+                record.data_model_parts = len(find_data_model_parts(zf))
                 vba_probe: VbaProbe = probe_vba(zf)
             record.vba = {
                 "present": vba_probe.present, "project_name": vba_probe.project_name,
                 "protected": vba_probe.protected, "modules": vba_probe.module_names,
                 "module_count": vba_probe.count,
+                "code_modules": vba_probe.code_modules,
+                "code_module_count": len(vba_probe.code_modules),
+                "document_module_count": len(vba_probe.document_modules),
             }
 
         elif record.kind == KIND_WORKBOOK_XML:
@@ -319,6 +347,7 @@ def probe_source(record: SourceRecord, config: Config) -> Tuple[SourceRecord, Op
                 record.sheets.append(
                     SheetRecord(
                         name=sheet.name, state=sheet.state, rows=sheet.row_count,
+                        rows_with_values=sheet.rows_with_values,
                         data_rows=sheet.data_row_estimate, columns=sheet.max_column_index + 1,
                         formulas=sheet.formula_count, header_row=sheet.header_row,
                         header_confidence=sheet.header_confidence, headers=sheet.headers,
@@ -335,6 +364,9 @@ def probe_source(record: SourceRecord, config: Config) -> Tuple[SourceRecord, Op
                 "present": vba_probe.present, "project_name": vba_probe.project_name,
                 "protected": vba_probe.protected, "modules": vba_probe.module_names,
                 "module_count": vba_probe.count,
+                "code_modules": vba_probe.code_modules,
+                "code_module_count": len(vba_probe.code_modules),
+                "document_module_count": len(vba_probe.document_modules),
             }
             if wb_probe.shared_strings_truncated:
                 record.errors.append(
@@ -358,6 +390,15 @@ def probe_source(record: SourceRecord, config: Config) -> Tuple[SourceRecord, Op
         record.probe_status = STATUS_FAILED
 
     if mashup is not None:
+        # Scrub before the queries are recorded, not after. Redacting only the
+        # derived external_locations list left live tokens in power_query and in
+        # query_dependencies — redaction has to happen at the single point the
+        # raw text enters the record.
+        if redactor is not None:
+            for query in mashup.queries:
+                query.metadata = redactor.scrub(query.metadata)
+                for source in query.sources:
+                    source["location"] = redactor.scrub(source["location"])
         record.power_query = {
             "found": mashup.found,
             "part": mashup.part,
@@ -380,6 +421,13 @@ def probe_source(record: SourceRecord, config: Config) -> Tuple[SourceRecord, Op
             if source["kind"] == "query_ref":
                 continue
             locations.setdefault(source["location"], {**source, "via": f"PQ:{query['name']}"})
+    if redactor is not None:
+        for connection in record.connections:
+            for key in ("connection_string", "command", "source_file"):
+                if connection.get(key):
+                    connection[key] = redactor.scrub(connection[key])
+        record.external_links = [redactor.scrub(link) for link in record.external_links]
+
     for connection in record.connections:
         for value in (connection.get("source_file", ""), connection.get("connection_string", "")):
             if value and ("\\" in value or value.lower().startswith("http")):
@@ -387,7 +435,18 @@ def probe_source(record: SourceRecord, config: Config) -> Tuple[SourceRecord, Op
                                              "location": value})
     for link in record.external_links:
         locations.setdefault(link, {"kind": "workbook_link", "via": "formula link", "location": link})
+    if redactor is not None:
+        for entry in locations.values():
+            entry["location"] = redactor.scrub(entry["location"])
     record.external_locations = list(locations.values())
+
+    # Query-level dependencies feed the cross-workbook lineage graph.
+    record.query_dependencies = [
+        {"query": query["name"], "kind": source["kind"], "location": source["location"]}
+        for query in record.power_query.get("queries", [])
+        for source in query["sources"]
+        if source["kind"] != "query_ref"
+    ]
 
     # ---- classification ----
     record.domain, record.domain_keywords = classify.classify_domain(
@@ -407,9 +466,24 @@ def probe_source(record: SourceRecord, config: Config) -> Tuple[SourceRecord, Op
         record.domain = seed_domains[0]
 
     # Keys are detected per sheet. Pooling headers across every tab lets a hidden
-    # lookup sheet contribute a spurious key to the whole workbook's grain.
+    # lookup sheet contribute a spurious key to the whole workbook's grain — and
+    # in a 76-tab workbook each tab is a different entity, so the sheet, not the
+    # file, is the real unit of discovery.
     for sheet in record.sheets:
-        sheet.key_fields = classify.detect_key_fields(sheet.headers)
+        sheet.key_detail = classify.detect_key_fields_scored(sheet.headers)
+        sheet.key_fields = {role: str(d["header"]) for role, d in sheet.key_detail.items()}
+        sheet.grain = classify.infer_grain(sheet.key_fields)
+        sheet.domain, _sheet_hits = classify.classify_domain(sheet.name, sheet.headers, disc.domains)
+        sheet.bloated = (
+            sheet.rows >= disc.bloat_min_rows
+            and sheet.rows_with_values < sheet.rows * disc.bloat_value_ratio
+        )
+        if sheet.bloated:
+            record.errors.append(
+                f"sheet '{sheet.name}': {sheet.rows:,} physical rows but only "
+                f"{sheet.rows_with_values:,} hold values — padded by formatting, "
+                "inflating the file and any row count taken from it"
+            )
     primary: Optional[SheetRecord] = max(
         (s for s in record.sheets if s.state == "visible" and s.key_fields),
         key=lambda s: (len(s.key_fields), s.data_rows),
@@ -462,6 +536,17 @@ def probe_source(record: SourceRecord, config: Config) -> Tuple[SourceRecord, Op
     )
     record.risk_score, record.risk_band, record.risk_findings = risk.score, risk.band, risk.findings
 
+    if record.data_model_parts:
+        record.risk_score += 8
+        record.risk_findings.append(
+            f"{record.data_model_parts} Power Pivot / data model part(s) — a second "
+            "modelling layer beside the grid and the query stack, with its own measures"
+        )
+        record.risk_band = (
+            "critical" if record.risk_score >= 70 else "high" if record.risk_score >= 40
+            else "medium" if record.risk_score >= 15 else "low"
+        )
+
     if record.probe_status != STATUS_FAILED:
         record.probe_status = STATUS_PARTIAL if record.errors else STATUS_OK
     return record, mashup
@@ -472,7 +557,10 @@ def probe_source(record: SourceRecord, config: Config) -> Tuple[SourceRecord, Op
 # --------------------------------------------------------------------------
 
 def write_query_files(
-    record: SourceRecord, mashup: Optional[MashupProbe], queries_dir: Path
+    record: SourceRecord,
+    mashup: Optional[MashupProbe],
+    queries_dir: Path,
+    redactor: Optional[Redactor] = None,
 ) -> Tuple[List[str], List[Dict[str, str]]]:
     """Write each M query to ``queries/<workbook>/<query>.m`` and diff against last run.
 
@@ -491,6 +579,8 @@ def write_query_files(
     for query in mashup.queries:
         target: Path = target_dir / query.safe_filename()
         new_text: str = query.source.rstrip() + "\n"
+        if redactor is not None:
+            new_text = redactor.scrub(new_text)
         if target.exists():
             previous: str = target.read_text(encoding="utf-8")
             if previous != new_text:
@@ -505,7 +595,10 @@ def write_query_files(
         target.write_text(new_text, encoding="utf-8")
         written.append(str(target))
 
-    (target_dir / "_Section1.m").write_text(mashup.section_text, encoding="utf-8")
+    section: str = mashup.section_text
+    if redactor is not None:
+        section = redactor.scrub(section)
+    (target_dir / "_Section1.m").write_text(section, encoding="utf-8")
     written.append(str(target_dir / "_Section1.m"))
     return written, diffs
 
@@ -521,6 +614,7 @@ def run_discovery(config: Config, write_queries: bool = True) -> DiscoveryResult
 
     candidates, skipped, root_status = sweep(config)
     queries_dir: Path = config.path("queries_dir")
+    redactor: Redactor = Redactor.from_config(config.discovery.redact_patterns)
 
     sources: List[SourceRecord] = []
     query_files: List[str] = []
@@ -528,12 +622,23 @@ def run_discovery(config: Config, write_queries: bool = True) -> DiscoveryResult
 
     for root, path in candidates:
         record: SourceRecord = _base_record(root, path, _kind_for(path, config), config.discovery.hash_sample_bytes)
-        record, mashup = probe_source(record, config)
+        record, mashup = probe_source(record, config, redactor)
         sources.append(record)
         if write_queries:
-            written, diffs = write_query_files(record, mashup, queries_dir)
+            written, diffs = write_query_files(record, mashup, queries_dir, redactor)
             query_files.extend(written)
             query_diffs.extend(diffs)
+
+    # ---- cross-workbook lineage ----
+    lineage: LineageFindings = build_lineage([
+        (
+            record.id,
+            record.relative_path,
+            record.filename,
+            [(d["query"], d["kind"], d["location"]) for d in record.query_dependencies],
+        )
+        for record in sources
+    ])
 
     # ---- duplicate-truth detection across files ----
     entries: List[Tuple[str, str, str, int, Set[str], Dict[str, str]]] = []
@@ -566,7 +671,7 @@ def run_discovery(config: Config, write_queries: bool = True) -> DiscoveryResult
         })
 
     finished: float = time.time()
-    return DiscoveryResult(
+    result: DiscoveryResult = DiscoveryResult(
         started_at=started_at,
         finished_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
         duration_seconds=round(finished - start, 2),
@@ -578,4 +683,21 @@ def run_discovery(config: Config, write_queries: bool = True) -> DiscoveryResult
         query_files_written=query_files,
         query_diffs=query_diffs,
         skipped=skipped,
+        lineage_cycles=lineage.cycles,
+        forked_upstreams=lineage.forked_upstreams,
+        version_skew=lineage.version_skew,
+        unresolved_references=lineage.unresolved_files,
+        upstream_edges=[
+            {
+                "consumer": edge.consumer_path,
+                "query": edge.query,
+                "upstream_kind": edge.upstream.kind,
+                "upstream_key": edge.upstream.key,
+                "upstream_label": edge.upstream.label,
+                "resolved_to_swept_file": edge.resolved_source_id or "",
+            }
+            for edge in lineage.edges
+        ],
+        redactions=redactor.summary(),
     )
+    return result

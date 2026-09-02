@@ -6,9 +6,97 @@ This is the contract between the workbook estate and everything downstream —
 warehouse, `SC_Reference.xlsx`, HTML engine. Change it after Phase 2 exists and
 you rewrite readers, so it gets argued about now instead.
 
-Read the four rules, skim the entities, then go to
-[Decisions I need from you](#decisions-i-need-from-you) at the bottom. That
-section is the actual ask.
+Read [What the sweep found](#what-the-sweep-found) first — it changes the shape
+of the answer — then the four rules, then
+[Decisions I need from you](#decisions-i-need-from-you).
+
+---
+
+## What the sweep found
+
+Discovery has now run against `Supply_Chain_Update_Meeting_Workbook.xlsm`,
+`Shipment_Request_HIE__Updated.xlsm` and `Direct_Shipments_Consolidator.xlsm`.
+Three things it turned up change the plan.
+
+### 1. The system of record is NetSuite, not the workbooks
+
+All three workbooks refresh from the **same eight NetSuite File Cabinet
+exports**, addressed as tokenised `media.nl?id=...` URLs. Five of those eight are
+read by more than one workbook, each applying its own transformation:
+
+| Export id | Read by | Under the query name | Canonical entity |
+|---|---|---|---|
+| 2600946 | Meeting, HIE | Items On PO / PO | `open_po` |
+| 2600947 | Meeting, HIE (x2) | Current Inventory / Location_Inventory / Regional Inv Loc | `inventory_onhand` |
+| 2600949 | Meeting, HIE, DSR | Customer Open Orders / Open_Order_Report / Open Order | `demand` (`open_so`) |
+| 2600950 | HIE | Sales | `demand` (`actual_shipped`) |
+| 2606291 | Meeting, HIE | Forecast Qty / NetSuite Forecast | `demand` (`forecast`) |
+| 2613629 | Meeting | Purchase Price | `item` (cost) |
+| 2620991 | Meeting, HIE | New Product Allocations / New Prod Alloc | `allocation` |
+| SharePoint | Meeting | ValidatedSales (Actuals vs Forecast) | `demand` confidence basis |
+
+**This is why two reports disagree.** They are not disagreeing about the data —
+they read the identical export. They are disagreeing about the *logic* applied
+after it lands. Consolidating the workbooks without consolidating the query logic
+would move the problem, not solve it.
+
+So the canonical data layer reads those eight exports **once each**, applies one
+agreed transformation per entity, and the workbooks become consumers. That is the
+consolidation.
+
+### 2. There is a circular refresh dependency
+
+```
+Supply_Chain_Update_Meeting_Workbook.xlsm
+    -> reads HIEInv, HIEProdFlat, JingdianProdFlat, PoisonInvFlat
+       from Shipment Request HIE
+Shipment_Request_HIE__Updated.xlsm
+    -> reads "HIE Shipment"
+       from Supply Chain Update Meeting Workbook
+```
+
+Refresh order is undefined. Whichever refreshes second reads the other's previous
+output, so the numbers depend on click order. This has to be broken before
+anything downstream is trustworthy, and the fix is structural: both read the
+warehouse, neither reads the other.
+
+### 3. One of those reads points at a superseded file
+
+The meeting workbook's `HIEInv` query reads
+`...\Supply Chain Files\Chase\Shipment Request HIE .xlsm` — note the space
+before the extension — while `HIEProdFlat`, `JingdianProdFlat` and
+`PoisonInvFlat` read `...\Shipment Request HIE - Updated.xlsm`. Two different
+files, one asset. HIE inventory in the meeting workbook is currently sourced from
+the older file. That is a live wrong-number bug, and the sweep could not find the
+older file at all — so it may already be gone, in which case that query is
+failing silently or serving a cached result.
+
+### 4. Scale, and what it means for the model
+
+| | Meeting | HIE | DSR |
+|---|---|---|---|
+| Sheets | 76 (51 hidden) | 36 (7 hidden) | 13 (0 hidden) |
+| Power Query | 11 | 8 | 1 |
+| Workbook connections | 14 | 8 | 1 |
+| VBA code modules | 3 (`InvReview`, `PythonRun`, `Alloc_Engine`) | 1 (`Module1`) | 18 (`modDSR_*`) |
+| VBA protected | yes | yes | yes |
+| Power Pivot data model | 22 parts | — | — |
+| Formula cells | ~277,000 | ~8,000 | 1 |
+
+Two consequences:
+
+- **The sheet, not the workbook, is the unit of consolidation.** A 76-tab
+  workbook is not one entity; each tab is a different one. The sheet-level entity
+  map in `discovery/DISCOVERY.md` is the artifact to review, not the file table.
+- **`Position Engine` (59,751 formulas), `Allocation Plan` (47,534),
+  `__CleanBO` (37,451), `BOMMaster` (35,367) and `__Alloc Engine` (24,528) are
+  calculation engines, not data.** They are Phase 2 *logic* to port, not tables
+  to read. All are hidden or veryHidden, and the VBA that drives them is
+  password-protected — see decision 5.
+
+You already have a `SKU (Canon)` column in the DSR workbook, which is the
+crosswalk concept below under a different name. I have kept the name
+`item_crosswalk` for the table and will map `SKU (Canon)` onto it.
 
 ---
 
@@ -283,34 +371,53 @@ Warnings that do *not* block: unknown `data_as_of`, low forecast confidence,
 
 ## Decisions I need from you
 
-Phase 2 is blocked on these. Everything else I will decide and tell you about.
+Phase 2 is blocked on these. They are narrower than they were before the sweep —
+the workbooks answered most of the earlier questions themselves.
 
-1. **Source of record per domain.** For each domain with more than one candidate
-   in `discovery/manifest.json`, which file wins? The sweep flags the pairs; it
-   cannot know your intent. In-transit is the live example — the In Transit
-   workbook and the Table In-Transit Dashboard hold the same columns with
-   different row counts.
+1. **Break the cycle — which direction?** My recommendation: the HIE workbook is
+   upstream for production and supplier-held inventory; the meeting workbook
+   consumes it and never the reverse. So `HIE Shipment` in the HIE workbook stops
+   reading the meeting workbook and reads the warehouse instead. Confirm, or tell
+   me it is the other way round.
 
-2. **`ownership` values.** Is the four-way split
-   (`predator_paid` / `supplier_held_unpaid` / `consignment` / `in_bond`)
-   right, or does the estate only really distinguish paid from unpaid?
+2. **The eight exports — one transformation each.** For every forked export
+   above, the per-workbook query logic differs. I need to know, per export, which
+   workbook's version is *correct* — or that they are deliberately different
+   (e.g. `Location_Inventory` and `Regional Inv Loc` both read export 2600947 but
+   at different grains, which looks intentional). Answer per row of that table;
+   this is the single biggest item.
 
-3. **`shipment_id`.** Container # as the key, falling back to invoice # when
-   absent — correct? It breaks for LCL consolidations where one container carries
-   several invoices. Is that real in your lanes?
+3. **`Shipment Request HIE .xlsm` — dead or alive?** The sweep could not find it.
+   If it is gone, `HIEInv` in the meeting workbook is broken right now and I need
+   to know what it should read. If it exists, it is in a folder I did not sweep.
 
-4. **`region_channel` list.** I have `americas`, `emea`, `apac`, `b2c`,
-   `tradeshow`, `sponsorship`, `marketing`, `hq_reserve`. Missing or extra?
+4. **`ownership` for HIE stock.** The HIE sheets distinguish
+   `HIE total (finished at supplier)` from JAX inventory. Is
+   supplier-held-unpaid the right label for the former, and is
+   `predator_paid` / `supplier_held_unpaid` sufficient, or do you also need
+   `consignment` and `in_bond`?
 
-5. **The Worst Flag boolean tests.** The exact conditions for `CAPITAL TRAP`,
-   `MOSTLY DEAD`, `AT RISK` and `OVER-FORECASTED`. Either state them, or
-   unprotect the VBA project so I can read them — I will not reverse-engineer
-   thresholds from output values and quietly get them slightly wrong.
+5. **The protected VBA.** Three projects, all password-protected, holding
+   `Alloc_Engine`, `InvReview`, `PythonRun` and 18 `modDSR_*` modules. Those
+   modules *are* the allocation and release logic — the Worst Flag tests, the
+   go/no-go gate, the release packet rules. I cannot port what I cannot read, and
+   I will not infer thresholds from output values and get them quietly wrong.
+   Either unprotect them for the port, or state the rules. `PythonRun` suggests
+   you already shell out to Python from VBA; if that script is on disk, point me
+   at it and it may answer this for free.
 
-6. **`data_as_of` per source.** Which sources state their own as-of date in a
-   cell or a filename, and where? Everything else falls back to unknown, and a
-   `Data Vintage` tab full of "unknown" is a tab nobody trusts.
+6. **Allocation grain.** `NP Allocation Table` (1,923 rows, meeting) and
+   `New Prod Alloc` (1,887 rows, HIE) both derive from export 2620991 and differ
+   by 36 rows. Which is right, and is allocation keyed by
+   `sku + region_channel + effective_date` as proposed, or is there a launch/wave
+   dimension I am missing?
 
-7. **Forecast horizon.** How many months forward does `months_supply` divide by —
-   3, 6, or 12? It changes every overstock and dead-stock call in the system.
+7. **`data_as_of`.** The exports are pulled live at refresh, so `data_as_of` is
+   the refresh timestamp — fine. But `Projected Inventory`, `BK Dist Plan` and the
+   `S&OP 6.3.2026` sheet are point-in-time. Where do those record their own
+   as-of date, or should I take file modified time and label it as an estimate?
 
+8. **Forecast horizon** for `months_supply` — 3, 6, or 12 months forward? It
+   changes every overstock and dead-stock call. `Forecast Qty` is 154 lines of M
+   and already does period bucketing, so tell me which bucket to divide by and I
+   will match the existing logic rather than inventing a parallel one.

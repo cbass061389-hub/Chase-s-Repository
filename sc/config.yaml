@@ -144,6 +144,30 @@ discovery:
       label: "export_dashboard_data.py"
       patterns: ["export_dashboard_data.py"]
 
+  # Secrets to strip before anything is written to disk. Power Query text
+  # routinely embeds tokenised URLs — a NetSuite File Cabinet media link carries
+  # its access token in `h=` — and queries/ is committed to git. Redaction is
+  # applied to every written .m file and to every location in the manifest.
+  redact_patterns:
+    - name: netsuite_media_token
+      pattern: '([?&]h=)[A-Za-z0-9_\-]{8,}'
+    - name: url_embedded_credentials
+      pattern: '(://[^:/@\s"]+:)[^@/\s"]{3,}(?=@)'
+    - name: azure_sas_signature
+      pattern: '([?&](?:sig|sv|se)=)[A-Za-z0-9%+/=_\-]{10,}'
+    - name: generic_api_key
+      pattern: '(?i)([?&](?:api[_-]?key|access[_-]?token|auth|token|key|password|pwd)=)[^&"\s]{6,}'
+    - name: bearer_token
+      pattern: '(?i)(Bearer\s+)[A-Za-z0-9._\-]{16,}'
+    - name: connection_string_secret
+      pattern: '(?i)((?:^|[;,])\s*(?:password|pwd|user id|uid|account[_ ]?key)\s*=)[^;"]{3,}'
+
+  # Row-bloat detection. A sheet padded to Excel's row limit by formatting
+  # reports a million rows and no data; both numbers are recorded so the
+  # difference is visible instead of the count being quietly wrong.
+  bloat_min_rows: 5000
+  bloat_value_ratio: 0.10
+
   # Thresholds that decide "true source" vs "calculated output". A workbook
   # that recomputes more than it holds is a report, not a source of record.
   role_heuristics:

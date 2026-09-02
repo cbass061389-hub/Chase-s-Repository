@@ -14,7 +14,10 @@ the pipeline is invisible in a diff and gets debugged from scratch. Once these
 files are committed, the next discovery run reports every changed query in
 `DISCOVERY.md` under "Power Query changes since the last discovery run".
 
-Empty in a fresh clone — the queries come from your workbooks.
+**Secrets are redacted.** These queries embed NetSuite File Cabinet access
+tokens in the `h=` URL parameter. Those are stripped before writing; the
+endpoint (`media.nl?id=...`) stays so lineage still resolves. A regression test
+fails if a live token ever reaches a written file.
 
 **Do not hand-edit.** These are overwritten on every run. The workbook is still
 the place a query gets changed; this directory is the record of it.

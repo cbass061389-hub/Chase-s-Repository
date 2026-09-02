@@ -26,6 +26,7 @@ from sc.discovery.datamashup import (
     extract_sources,
     parse_queries,
     probe_mashup,
+    resolve_query_refs,
     read_section_m,
     split_declarations,
 )
@@ -80,8 +81,26 @@ class TestMParser(unittest.TestCase):
         self.assertIn("second", queries[1].metadata)
 
     def test_query_reference_is_a_dependency(self) -> None:
-        second = parse_queries(self.SECTION)[1]
+        queries = parse_queries(self.SECTION)
+        resolve_query_refs(queries)
+        second = queries[1]
         self.assertIn("Open PO", [s["location"] for s in second.sources if s["kind"] == "query_ref"])
+
+    def test_let_step_names_are_not_dependencies(self) -> None:
+        """Every `let` step is written as #"Name" too; only real queries count."""
+        section = (
+            'section Section1;\n\n'
+            'shared Alpha = let\n'
+            '    Source = Csv.Document(File.Contents("C:\\a.csv")),\n'
+            '    #"Promoted Headers" = Table.PromoteHeaders(Source),\n'
+            '    #"Changed Type" = Table.TransformColumnTypes(#"Promoted Headers", {})\n'
+            'in\n'
+            '    #"Changed Type";\n'
+        )
+        queries = parse_queries(section)
+        resolve_query_refs(queries)
+        refs = [s["location"] for s in queries[0].sources if s["kind"] == "query_ref"]
+        self.assertEqual(refs, [])
 
     def test_source_kinds_are_typed(self) -> None:
         body = (
@@ -463,6 +482,157 @@ class TestEndToEndSweep(unittest.TestCase):
         again = run_discovery(self.config, write_queries=True)
         self.assertEqual(len(again.sources), len(self.result.sources))
         self.assertEqual(again.query_diffs, [])   # nothing changed, so no query diffs
+
+
+class TestSecretRedaction(unittest.TestCase):
+    """Nothing written to disk may contain a live credential.
+
+    The first run against real workbooks leaked 41 NetSuite File Cabinet access
+    tokens into manifest.json, because redaction was applied to the derived
+    location list but not to the query sources it was derived from.
+    """
+
+    TOKEN: str = "_HahnzC1dx_VFLyedcBGmZp2_z7ySlKE4PFnMEVKeOEtJ7xZ"
+
+    def _estate_with_a_tokenised_query(self, root: Path) -> None:
+        section = (
+            'section Section1;\n\n'
+            'shared "Current Inventory" = let\n'
+            f'    Source = Csv.Document(Web.Contents("https://3492685.app.netsuite.com/core/media/'
+            f'media.nl?id=2600947&c=3492685&h={self.TOKEN}&_xt=.csv"))\n'
+            'in\n'
+            '    Source;\n'
+        ).replace('shared "Current Inventory"', 'shared #"Current Inventory"')
+        write_xlsx(root / "Pipeline.xlsm", [("S", [["SKU", "Qty"], ["A", 1]], "visible")],
+                   mashup_section=section)
+
+    def test_no_token_reaches_any_written_file(self) -> None:
+        from sc.discovery.report import write_manifest
+
+        with tempfile.TemporaryDirectory() as tmp:
+            estate: Path = Path(tmp) / "estate"
+            estate.mkdir()
+            self._estate_with_a_tokenised_query(estate)
+            base: Config = load_config()
+            config = replace(
+                base,
+                discovery=replace(base.discovery, roots=[str(estate)], extra_roots=[],
+                                  auto_detect_onedrive=False),
+                repo_root=Path(tmp) / "out",
+            )
+            result = run_discovery(config, write_queries=True)
+            manifest: Path = write_manifest(result, Path(tmp) / "out" / "discovery")
+
+            written: list[Path] = [manifest, *(Path(f) for f in result.query_files_written)]
+            self.assertGreater(len(written), 1)
+            for path in written:
+                self.assertNotIn(self.TOKEN, path.read_text(encoding="utf-8"),
+                                 f"live token leaked into {path.name}")
+            self.assertIn("<REDACTED>", manifest.read_text(encoding="utf-8"))
+
+    def test_endpoint_stays_visible_after_redaction(self) -> None:
+        """The credential goes; the endpoint must not, or lineage breaks."""
+        with tempfile.TemporaryDirectory() as tmp:
+            estate: Path = Path(tmp) / "estate"
+            estate.mkdir()
+            self._estate_with_a_tokenised_query(estate)
+            base: Config = load_config()
+            config = replace(
+                base,
+                discovery=replace(base.discovery, roots=[str(estate)], extra_roots=[],
+                                  auto_detect_onedrive=False),
+                repo_root=Path(tmp) / "out",
+            )
+            result = run_discovery(config, write_queries=False)
+            locations = [loc["location"] for loc in result.sources[0].external_locations]
+            self.assertTrue(any("id=2600947" in loc for loc in locations))
+            self.assertFalse(any(self.TOKEN in loc for loc in locations))
+
+
+class TestLineageGraph(unittest.TestCase):
+    """Cross-workbook findings — the checks that only exist at graph level."""
+
+    def test_same_export_different_url_text_is_one_upstream(self) -> None:
+        from sc.discovery.lineage import canonical_upstream
+
+        a = canonical_upstream("web", "https://3492685.app.netsuite.com/core/media/media.nl?id=2600949&c=3492685&h=AAA")
+        b = canonical_upstream("web", "https://3492685.app.netsuite.com/core/media/media.nl?id=2600949&c=3492685&h=BBB&_xt=.csv")
+        self.assertEqual(a.key, b.key)
+        self.assertEqual(a.kind, "netsuite_file_cabinet")
+
+    def test_circular_dependency_detected_across_separator_styles(self) -> None:
+        """A space-versus-underscore difference must not hide a real cycle."""
+        from sc.discovery.lineage import build_lineage
+
+        findings = build_lineage([
+            ("id_a", "Meeting.xlsm", "Supply_Chain_Update_Meeting_Workbook.xlsm",
+             [("HIEInv", "file", r"C:\OneDrive\Shipment Request HIE - Updated.xlsm")]),
+            ("id_b", "HIE.xlsm", "Shipment_Request_HIE__Updated.xlsm",
+             [("HIE Shipment", "file", r"C:\OneDrive\Supply Chain Update Meeting Workbook.xlsm")]),
+        ])
+        self.assertEqual(len(findings.cycles), 1)
+        self.assertEqual(set(findings.cycles[0]), {"Meeting.xlsm", "HIE.xlsm"})
+
+    def test_forked_upstream_reports_every_consumer(self) -> None:
+        from sc.discovery.lineage import build_lineage
+
+        url = "https://3492685.app.netsuite.com/core/media/media.nl?id=2600949&c=3492685&h=X"
+        findings = build_lineage([
+            ("a", "A.xlsm", "A.xlsm", [("Customer Open Orders", "web", url)]),
+            ("b", "B.xlsm", "B.xlsm", [("Open_Order_Report", "web", url)]),
+            ("c", "C.xlsm", "C.xlsm", [("Open Order", "web", url)]),
+        ])
+        self.assertEqual(len(findings.forked_upstreams), 1)
+        self.assertEqual(findings.forked_upstreams[0]["consumer_count"], 3)
+
+    def test_version_skew_detected(self) -> None:
+        from sc.discovery.lineage import build_lineage
+
+        findings = build_lineage([
+            ("a", "Meeting.xlsm", "Meeting.xlsm", [
+                ("HIEInv", "file", r"C:\x\Shipment Request HIE .xlsm"),
+                ("HIEProdFlat", "file", r"C:\x\Shipment Request HIE - Updated.xlsm"),
+            ]),
+        ])
+        self.assertEqual(len(findings.version_skew), 1)
+        self.assertEqual(len(findings.version_skew[0]["variants"]), 2)
+
+    def test_unrelated_files_are_not_version_skew(self) -> None:
+        from sc.discovery.lineage import build_lineage
+
+        findings = build_lineage([
+            ("a", "A.xlsm", "A.xlsm", [
+                ("Q1", "file", r"C:\x\Tariffs.xlsx"),
+                ("Q2", "file", r"C:\x\Forecast.xlsx"),
+            ]),
+        ])
+        self.assertEqual(findings.version_skew, [])
+
+    def test_risk_score_is_capped_per_rule(self) -> None:
+        """Eleven exports are eleven dependencies, not eleven fragilities."""
+        one = classify.assess_dependency_risk(
+            locations=["https://x.example/a"], has_vba=False, vba_protected=False,
+            hidden_sheet_count=0, row_count_capped=False, header_confidence=1.0, probe_errors=[])
+        many = classify.assess_dependency_risk(
+            locations=[f"https://x.example/{i}" for i in range(11)], has_vba=False,
+            vba_protected=False, hidden_sheet_count=0, row_count_capped=False,
+            header_confidence=1.0, probe_errors=[])
+        self.assertLessEqual(many.score, one.score * classify.RISK_RULE_CAP)
+
+
+class TestRowBloat(unittest.TestCase):
+    def test_formatting_padded_rows_are_not_counted_as_data(self) -> None:
+        """A sheet padded by formatting reports a huge row count and no data."""
+        from sc.discovery.workbook_probe import probe_workbook
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path: Path = Path(tmp) / "padded.xlsx"
+            rows: list = [["SKU", "Qty"], ["A", 1], ["B", 2]]
+            rows.extend([[None, None]] * 300)          # styled-but-empty rows
+            write_xlsx(path, [("Padded", rows, "visible")])
+            sheet = probe_workbook(str(path)).sheets[0]
+        self.assertEqual(sheet.rows_with_values, 3)
+        self.assertEqual(sheet.data_row_estimate, 2)
 
 
 class TestQueryDiffDetection(unittest.TestCase):

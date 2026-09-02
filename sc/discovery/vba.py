@@ -51,6 +51,23 @@ class VbaProbe:
     def count(self) -> int:
         return len(self.module_names)
 
+    @property
+    def code_modules(self) -> List[str]:
+        """Standard and class modules — the components that hold real logic.
+
+        Excel declares one ``Document=`` component per worksheet, so a 76-tab
+        workbook lists 70-odd "Sheet12"-style entries that say nothing. Those are
+        separated out so the modules worth reading stay visible.
+        """
+        named: List[str] = []
+        for kind in ("Module", "Class", "BaseClass"):
+            named.extend(self.components.get(kind, []))
+        return named
+
+    @property
+    def document_modules(self) -> List[str]:
+        return list(self.components.get("Document", []))
+
 
 def probe_vba(zf: zipfile.ZipFile) -> VbaProbe:
     """Inventory the VBA project in an open workbook package. Reads only."""

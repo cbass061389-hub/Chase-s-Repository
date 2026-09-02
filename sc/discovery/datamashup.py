@@ -25,7 +25,7 @@ import re
 import struct
 import zipfile
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 from xml.etree import ElementTree as ET
 
 from .ooxml import local_name
@@ -68,6 +68,7 @@ class MashupProbe:
     section_text: str = ""
     queries: List[MQuery] = field(default_factory=list)
     package_parts: List[str] = field(default_factory=list)
+    all_parts: List[str] = field(default_factory=list)
     error: Optional[str] = None
 
     @property
@@ -79,24 +80,69 @@ class MashupProbe:
 # Blob location and decoding
 # --------------------------------------------------------------------------
 
+def _decode_head(head: bytes) -> str:
+    """Decode a part's leading bytes, honouring a UTF-16 BOM.
+
+    Excel writes the DataMashup part as UTF-16LE with a BOM. An ASCII-only
+    substring check therefore never matches it, and the search falls through to
+    ``itemProps*.xml`` — which mentions DataMashup only in a schema reference.
+    That combination reports "no Power Query" on a workbook that is full of it.
+    """
+    if head[:2] in (b"\xff\xfe", b"\xfe\xff"):
+        encoding: str = "utf-16-le" if head[:2] == b"\xff\xfe" else "utf-16-be"
+        return head[2:].decode(encoding, errors="replace")
+    return head.decode("utf-8", errors="replace")
+
+
 def find_mashup_parts(zf: zipfile.ZipFile) -> List[str]:
-    """Every package part that contains a DataMashup element.
+    """Every package part that really holds a DataMashup element.
 
     Excel has used ``customXml/item1.xml`` and ``xl/customXml/item1.xml``
     depending on version, so candidates are located by content, not by path.
+    Two things this must get right:
+
+    * ``itemProps*.xml`` is excluded. It carries a ``ds:schemaRef`` naming the
+      DataMashup namespace without holding any mashup, and "customXml/item"
+      is a substring of "customXml/itemProps".
+    * The element name is matched after decoding, so a UTF-16 part is found.
     """
     candidates: List[str] = []
     for name in zf.namelist():
         lowered: str = name.lower()
-        if "customxml/item" not in lowered or not lowered.endswith(".xml"):
+        if not lowered.endswith(".xml") or "customxml/item" not in lowered:
+            continue
+        if "itemprops" in lowered or "/_rels/" in lowered:
             continue
         try:
-            head: bytes = zf.read(name)[:4096]
+            head: str = _decode_head(zf.read(name)[:8192])
         except (KeyError, zipfile.BadZipFile):
             continue
-        if b"DataMashup" in head:
+        if "<DataMashup" in head or ":DataMashup" in head:
             candidates.append(name)
     return candidates
+
+
+def find_data_model_parts(zf: zipfile.ZipFile) -> List[str]:
+    """Power Pivot / Excel Data Model parts.
+
+    The data model is stored under the internal "Gemini" codename. A workbook
+    carrying one has a second modelling layer beside the grid and the query
+    stack, with its own DAX measures and relationships — worth knowing about,
+    because it is another place a definition can live.
+    """
+    found: List[str] = []
+    for name in zf.namelist():
+        lowered: str = name.lower()
+        if lowered.endswith(".xml") and "customxml/item" in lowered and "itemprops" not in lowered:
+            try:
+                head: str = _decode_head(zf.read(name)[:2048])
+            except (KeyError, zipfile.BadZipFile):
+                continue
+            if "<Gemini" in head or ":Gemini" in head:
+                found.append(name)
+        elif "model/item" in lowered or lowered.endswith("xl/model/model.data"):
+            found.append(name)
+    return found
 
 
 def _decode_base64_element(raw: bytes) -> bytes:
@@ -342,17 +388,39 @@ def extract_sources(m_body: str) -> List[Dict[str, str]]:
         found.setdefault((kind, value), {"kind": kind, "via": "literal", "location": value})
 
     # A query referencing another query is a dependency too, and the usual cause
-    # of a refresh-order bug.
-    for match in re.finditer(r'#"((?:[^"]|"")*)"', m_body):
-        referenced: str = match.group(1).replace('""', '"')
-        if "\\" in referenced or "/" in referenced or len(referenced) > 80:
-            continue
-        found.setdefault(
-            ("query_ref", referenced),
-            {"kind": "query_ref", "via": "reference", "location": referenced},
-        )
-
+    # of a refresh-order bug. Resolved against the section's real query names in
+    # resolve_query_refs() — every `let` step is also written as #"Name", so
+    # matching the syntax alone reports "Promoted Headers" as a dependency.
     return list(found.values())
+
+
+def _identifier_references(m_body: str) -> List[str]:
+    """Every ``#"..."`` identifier in a query body, in order of appearance."""
+    return [
+        match.group(1).replace('""', '"')
+        for match in re.finditer(r'#"((?:[^"]|"")*)"', m_body)
+    ]
+
+
+def resolve_query_refs(queries: Sequence["MQuery"]) -> None:
+    """Attach cross-query dependencies, matched exactly against known query names.
+
+    Mutates each query's ``sources`` in place. A reference is a dependency only
+    when it names another query in the same section; anything else is one of the
+    query's own ``let`` steps.
+    """
+    known: Dict[str, str] = {q.name.strip().lower(): q.name for q in queries}
+    for query in queries:
+        own: str = query.name.strip().lower()
+        for referenced in _identifier_references(query.source):
+            canonical: Optional[str] = known.get(referenced.strip().lower())
+            if canonical is None or referenced.strip().lower() == own:
+                continue
+            if any(s["kind"] == "query_ref" and s["location"] == canonical for s in query.sources):
+                continue
+            query.sources.append(
+                {"kind": "query_ref", "via": "reference", "location": canonical}
+            )
 
 
 def probe_mashup(zf: zipfile.ZipFile) -> MashupProbe:
@@ -362,9 +430,19 @@ def probe_mashup(zf: zipfile.ZipFile) -> MashupProbe:
         return MashupProbe(found=False)
 
     probe: MashupProbe = MashupProbe(found=True, part=parts[0])
-    try:
-        probe.section_text, probe.package_parts = read_section_m(zf, parts[0])
-        probe.queries = parse_queries(probe.section_text)
-    except MashupError as exc:
-        probe.error = str(exc)
+    probe.all_parts = parts
+    errors: List[str] = []
+    for part in parts:
+        try:
+            section_text, package_parts = read_section_m(zf, part)
+        except MashupError as exc:
+            errors.append(f"{part}: {exc}")
+            continue
+        probe.part = part
+        probe.section_text, probe.package_parts = section_text, package_parts
+        probe.queries = parse_queries(section_text)
+        resolve_query_refs(probe.queries)
+        break
+    if not probe.queries and errors:
+        probe.error = "; ".join(errors)
     return probe

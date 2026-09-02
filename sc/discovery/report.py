@@ -46,6 +46,14 @@ def write_manifest(result: DiscoveryResult, discovery_dir: Path) -> Path:
         "seed_status": result.seed_status,
         "sources": [asdict(source) for source in result.sources],
         "duplicate_truth_candidates": result.overlaps,
+        "lineage": {
+            "cycles": result.lineage_cycles,
+            "forked_upstreams": result.forked_upstreams,
+            "version_skew": result.version_skew,
+            "unresolved_references": result.unresolved_references,
+            "upstream_edges": result.upstream_edges,
+        },
+        "redactions": result.redactions,
         "query_files_written": result.query_files_written,
         "query_diffs": result.query_diffs,
         "skipped": result.skipped,
@@ -87,6 +95,14 @@ def render_discovery_md(result: DiscoveryResult) -> str:
     add("")
     add(f"Generated {result.finished_at} in {result.duration_seconds}s from `{result.config_path}`.")
     add("Read-only sweep. No source workbook was opened in Excel, written to, or had a macro executed.")
+    if result.redactions:
+        total: int = sum(int(r["occurrences"]) for r in result.redactions)
+        detail: str = ", ".join(f"{r['pattern']} x{r['occurrences']}" for r in result.redactions)
+        add("")
+        add(f"**{total} secret(s) redacted** before writing ({detail}). Power Query text embeds "
+            "credentials — a NetSuite File Cabinet link carries its access token in `h=` — and "
+            "`queries/` is committed, so tokens are stripped from every written file and from "
+            "every location in this report. The endpoint stays visible; the credential does not.")
     add("")
 
     # ---------------- Executive summary ----------------
@@ -122,9 +138,39 @@ def render_discovery_md(result: DiscoveryResult) -> str:
     add("### Key risks")
     add("")
     risk_written: bool = False
+
+    if result.lineage_cycles:
+        add("1. **Circular refresh dependency — refresh order is undefined.** "
+            + "; ".join(" -> ".join(cycle) for cycle in result.lineage_cycles)
+            + ". Whichever workbook refreshes second reads the other's stale output, so the "
+            "numbers change depending on the order somebody happened to click. This has to be "
+            "broken before anything downstream can be trusted.")
+        risk_written = True
+
+    if result.version_skew:
+        index: int = 2 if risk_written else 1
+        skew = result.version_skew[0]
+        files = ", ".join(f"`{v['file']}`" for v in skew["variants"])
+        add(f"{index}. **One workbook reading two versions of the same file.** "
+            f"`{skew['workbook']}` pulls from {files}. Part of its data is sourced from a "
+            "superseded file, which is a live wrong-number bug, not a tidiness issue.")
+        risk_written = True
+
+    if result.forked_upstreams:
+        index = sum([bool(result.lineage_cycles), bool(result.version_skew)]) + 1
+        worst_fork = result.forked_upstreams[0]
+        add(f"{index}. **{len(result.forked_upstreams)} upstream export(s) feed more than one "
+            f"workbook, each with its own transformation.** Worst: {worst_fork['upstream_label']} "
+            f"is consumed by {worst_fork['consumer_count']} workbooks. This is the root cause of "
+            "two reports disagreeing — they do not disagree about the data, they disagree about "
+            "the logic. Consolidating the copies without consolidating the logic fixes nothing.")
+        risk_written = True
+
     if conflicts:
         worst = conflicts[0]
-        add(f"1. **Two sources claim the same data with different numbers.** Worst case: "
+        lead: int = sum([bool(result.lineage_cycles), bool(result.version_skew),
+                         bool(result.forked_upstreams)]) + 1
+        add(f"{lead}. **Two sources claim the same data with different numbers.** Worst case: "
             f"`{worst['left_file']}!{worst['left_sheet']}` ({worst['left_rows']:,} rows) vs "
             f"`{worst['right_file']}!{worst['right_sheet']}` ({worst['right_rows']:,} rows) — "
             f"{worst['jaccard']:.0%} header overlap, {abs(worst['row_delta']):,} row difference. "
@@ -132,12 +178,17 @@ def render_discovery_md(result: DiscoveryResult) -> str:
         risk_written = True
     if critical:
         worst_risk: SourceRecord = max(critical, key=lambda s: s.risk_score)
-        add(f"{'2' if risk_written else '1'}. **Fragile paths.** `{worst_risk.relative_path}` scores "
+        next_index: int = sum([bool(result.lineage_cycles), bool(result.version_skew),
+                               bool(result.forked_upstreams), bool(conflicts)]) + 1
+        add(f"{next_index}. **Fragile paths.** `{worst_risk.relative_path}` scores "
             f"{worst_risk.risk_score} ({worst_risk.risk_band}): "
             + "; ".join(worst_risk.risk_findings[:2]))
         risk_written = True
     if missing_seeds:
-        add(f"{'3' if risk_written else '1'}. **{len(missing_seeds)} expected "
+        tail_index: int = sum([bool(result.lineage_cycles), bool(result.version_skew),
+                               bool(result.forked_upstreams), bool(conflicts),
+                               bool(critical)]) + 1
+        add(f"{tail_index}. **{len(missing_seeds)} expected "
             f"{_plural(len(missing_seeds), 'workbook', 'workbooks')} not located** — "
             "either renamed, in a skipped folder, or outside the configured roots. "
             "Named below; each needs a path before Phase 2 can claim coverage.")
@@ -148,10 +199,25 @@ def render_discovery_md(result: DiscoveryResult) -> str:
 
     add("### Recommended action")
     add("")
-    add("1. Resolve the duplicate-truth pairs below — for each, tell me which file is the source.")
-    add("2. Confirm or correct the domain and grain assignments in the source table.")
-    add("3. Point `discovery.roots` / `extra_roots` in `sc/config.yaml` at anything the sweep missed, then re-run.")
-    add("4. Sign off on the canonical model in `SCHEMA.md` — Phase 2 does not start before that.")
+    step: int = 1
+    if result.lineage_cycles:
+        add(f"{step}. **Break the refresh cycle.** Name one workbook as upstream and have the other "
+            "read from the warehouse instead of from it directly. Nothing else here is worth "
+            "fixing while the graph has a loop in it.")
+        step += 1
+    if result.forked_upstreams:
+        add(f"{step}. **Pull the forked upstreams into one extraction per export.** Each shared "
+            "export should be read once, transformed once, and reused — the per-workbook query "
+            "logic is what has to be reconciled, not the output.")
+        step += 1
+    if result.version_skew:
+        add(f"{step}. **Retire the superseded file(s)** listed under version skew, and repoint the "
+            "queries still reading them.")
+        step += 1
+    add(f"{step}. Confirm the domain and grain calls in the sheet-level entity map, especially "
+        "every key marked `needs confirmation`.")
+    step += 1
+    add(f"{step}. Sign off on the canonical model in `SCHEMA.md` — Phase 2 does not start before that.")
     add("")
 
     # ---------------- Ranked source table ----------------
@@ -180,6 +246,107 @@ def render_discovery_md(result: DiscoveryResult) -> str:
     lines.extend(_table(rows, ["File", "Domain", "Role", "Grain (inferred)", "Refresh",
                               "Risk", "Rows", "Sheets", "Probe"]))
     add("")
+
+    # ---------------- Refresh dependency graph ----------------
+    add("## Refresh dependency graph")
+    add("")
+    if not result.upstream_edges:
+        add("No external query dependencies found.")
+    else:
+        add("Every query, and the canonical upstream it reads. Upstreams are identified by what "
+            "they *are* rather than by URL text, so two queries hitting the same export land on "
+            "the same node even when their URLs differ.")
+        add("")
+        edge_rows: List[List[str]] = [
+            [
+                f"`{edge['consumer']}`",
+                edge["query"],
+                edge["upstream_kind"],
+                edge["upstream_label"][:78],
+                "yes" if edge["resolved_to_swept_file"] else "",
+            ]
+            for edge in sorted(result.upstream_edges, key=lambda e: (e["consumer"], e["query"]))
+        ]
+        lines.extend(_table(edge_rows, ["Workbook", "Query", "Upstream kind", "Upstream",
+                                        "Is another swept file"]))
+        add("")
+
+    if result.lineage_cycles:
+        add("### Circular dependencies")
+        add("")
+        for cycle in result.lineage_cycles:
+            add(f"- `{'` -> `'.join(cycle)}`")
+        add("")
+        add("Refresh order is undefined in a cycle. Whichever side refreshes second is reading "
+            "the other's previous output.")
+        add("")
+
+    if result.version_skew:
+        add("### Version skew — one workbook, two versions of the same file")
+        add("")
+        for skew in result.version_skew:
+            add(f"- `{skew['workbook']}`")
+            for variant in skew["variants"]:
+                add(f"  - `{variant['file']}` <- queries: {', '.join(variant['queries'])}")
+        add("")
+
+    if result.forked_upstreams:
+        add("### Forked upstreams — one export, many transformations")
+        add("")
+        add("This is where duplicate numbers come from. One export, read independently by "
+            "several workbooks, each applying its own logic.")
+        add("")
+        fork_rows: List[List[str]] = []
+        for fork in result.forked_upstreams:
+            fork_rows.append([
+                fork["upstream_label"][:66],
+                fork["upstream_kind"],
+                str(fork["consumer_count"]),
+                "; ".join(f"`{c['workbook']}` ({c['query']})" for c in fork["consumers"]),
+            ])
+        lines.extend(_table(fork_rows, ["Upstream", "Kind", "Workbooks", "Consumed by"]))
+        add("")
+
+    if result.unresolved_references:
+        add("### Referenced files that were not in the sweep")
+        add("")
+        for entry in result.unresolved_references:
+            add(f"- `{entry['consumer']}` query `{entry['query']}` -> `{entry['location']}`")
+            add(f"  - {entry['note']}")
+        add("")
+
+    # ---------------- Sheet-level entity map ----------------
+    add("## Sheet-level entity map")
+    add("")
+    add("For a workbook with dozens of tabs the sheet, not the file, is the unit of "
+        "consolidation — each tab is a different entity. Keys marked **?** scored below the "
+        "confirmation threshold and are guesses; correct them rather than trusting them.")
+    add("")
+    for source in sorted(result.sources, key=lambda s: -len(s.sheets)):
+        populated = [sh for sh in source.sheets if sh.data_rows > 0]
+        if not populated:
+            continue
+        add(f"### `{source.relative_path}` — {len(populated)} populated of {len(source.sheets)} sheets")
+        add("")
+        sheet_rows: List[List[str]] = []
+        for sheet in sorted(populated, key=lambda sh: -sh.data_rows):
+            keys: str = ", ".join(
+                f"{role}={detail['header']}" + ("**?**" if detail.get("needs_confirmation") else "")
+                for role, detail in sheet.key_detail.items()
+            ) or "—"
+            sheet_rows.append([
+                sheet.name,
+                "" if sheet.state == "visible" else sheet.state,
+                sheet.domain,
+                f"{sheet.data_rows:,}" + (" **BLOAT**" if sheet.bloated else ""),
+                str(sheet.columns),
+                f"{sheet.formulas:,}",
+                str(sheet.header_row or "—"),
+                keys[:150],
+            ])
+        lines.extend(_table(sheet_rows, ["Sheet", "State", "Domain", "Data rows", "Cols",
+                                         "Formulas", "Hdr row", "Detected keys"]))
+        add("")
 
     # ---------------- Conflicts ----------------
     add("## Duplicate truth — two sources, same columns")
@@ -279,12 +446,13 @@ def render_discovery_md(result: DiscoveryResult) -> str:
                 f"`{s.relative_path}`",
                 s.vba.get("project_name") or "—",
                 "**yes**" if s.vba.get("protected") else "no",
-                str(s.vba.get("module_count", 0)),
-                ", ".join(s.vba.get("modules", [])[:10]),
+                f"{s.vba.get('code_module_count', 0)} code / "
+                f"{s.vba.get('document_module_count', 0)} sheet",
+                ", ".join(s.vba.get("code_modules") or s.vba.get("modules", [])[:10]),
             ]
             for s in vba_sources
         ]
-        lines.extend(_table(vba_rows, ["File", "Project", "Protected", "Components", "Names"]))
+        lines.extend(_table(vba_rows, ["File", "Project", "Protected", "Components", "Code modules"]))
     add("")
 
     # ---------------- Failures ----------------

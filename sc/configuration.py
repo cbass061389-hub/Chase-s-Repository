@@ -66,6 +66,9 @@ class DiscoveryConfig:
     seeds: List[SeedSpec]
     companion_extensions: List[str]
     role_heuristics: Dict[str, float]
+    redact_patterns: List[Dict[str, str]]
+    bloat_min_rows: int
+    bloat_value_ratio: float
 
     @property
     def max_file_bytes(self) -> int:
@@ -172,6 +175,12 @@ def load_config(config_path: Path | str | None = None) -> Config:
             str(k): float(v)
             for k, v in (_require(disc_raw, "role_heuristics", dict, "discovery")).items()
         },
+        redact_patterns=[
+            {"name": str(entry["name"]), "pattern": str(entry["pattern"])}
+            for entry in _require(disc_raw, "redact_patterns", list, "discovery")
+        ],
+        bloat_min_rows=int(disc_raw.get("bloat_min_rows", 5000)),
+        bloat_value_ratio=float(disc_raw.get("bloat_value_ratio", 0.10)),
     )
 
     thr_raw: Dict[str, Any] = _require(raw, "thresholds", dict, "config root")
