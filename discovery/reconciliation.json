@@ -1,0 +1,1002 @@
+{
+  "generated_at": "2026-09-02T17:50:20+00:00",
+  "counts": {
+    "upstreams": 11,
+    "forked_upstreams": 5,
+    "findings": 35,
+    "blocking": 6,
+    "warning": 25,
+    "info": 4
+  },
+  "findings": [
+    {
+      "kind": "key_normalization_conflict",
+      "severity": "blocking",
+      "upstream": "NetSuite File Cabinet export id=2600947 (account 3492685)",
+      "subject": "key column \"SKU\"",
+      "left": "Shipment_Request_HIE__Updated.xlsm!Regional Inv Loc",
+      "left_value": "if Text.Contains([Name],\":\") then Text.AfterDelimiter([Name],\":\") else [Name]",
+      "right": "Supply_Chain_Update_Meeting_Workbook.xlsm!Current Inventory",
+      "right_value": "if Text.Contains([Item], \":\") then Text.Trim(Text.AfterDelimiter([Item], \":\")) else Text.Trim([Item])",
+      "consequence": "Only one side applies Text.Trim. The same NetSuite value therefore produces two different key strings, so rows that should join do not, and the same item can appear twice in a combined view.",
+      "recommendation": "Normalise the key once, in the canonical layer, and never per query."
+    },
+    {
+      "kind": "measure_definition_conflict",
+      "severity": "blocking",
+      "upstream": "NetSuite File Cabinet export id=2600947 (account 3492685)",
+      "subject": "output column \"Available\"",
+      "left": "Shipment_Request_HIE__Updated.xlsm!Location_Inventory",
+      "left_value": "List.Sum([On Hand])",
+      "right": "Shipment_Request_HIE__Updated.xlsm!Regional Inv Loc",
+      "right_value": "List.Sum([Available])",
+      "consequence": "Both queries emit a column called \"Available\" from the same export, but they aggregate different source columns. Any comparison, join or roll-up across the two is comparing different measures under one name \u2014 and nothing in either workbook shows that.",
+      "recommendation": "Define this measure once in the canonical layer and give each variant a distinct, honest name."
+    },
+    {
+      "kind": "parse_option_conflict",
+      "severity": "blocking",
+      "upstream": "NetSuite File Cabinet export id=2600947 (account 3492685)",
+      "subject": "Csv.Document option QuoteStyle",
+      "left": "Shipment_Request_HIE__Updated.xlsm!Location_Inventory",
+      "left_value": "QuoteStyle.Csv",
+      "right": "Shipment_Request_HIE__Updated.xlsm!Regional Inv Loc",
+      "right_value": "QuoteStyle.None",
+      "consequence": "QuoteStyle.None ignores CSV quoting, so any field containing a comma splits across columns and silently shifts every value after it on that row. The two queries are reading the same bytes into different tables.",
+      "recommendation": "Read the export once, with QuoteStyle.Csv, and reuse it."
+    },
+    {
+      "kind": "parse_option_conflict",
+      "severity": "blocking",
+      "upstream": "NetSuite File Cabinet export id=2600947 (account 3492685)",
+      "subject": "Csv.Document option QuoteStyle",
+      "left": "Shipment_Request_HIE__Updated.xlsm!Location_Inventory",
+      "left_value": "QuoteStyle.Csv",
+      "right": "Supply_Chain_Update_Meeting_Workbook.xlsm!Current Inventory",
+      "right_value": "QuoteStyle.None",
+      "consequence": "QuoteStyle.None ignores CSV quoting, so any field containing a comma splits across columns and silently shifts every value after it on that row. The two queries are reading the same bytes into different tables.",
+      "recommendation": "Read the export once, with QuoteStyle.Csv, and reuse it."
+    },
+    {
+      "kind": "parse_option_conflict",
+      "severity": "blocking",
+      "upstream": "NetSuite File Cabinet export id=2600949 (account 3492685)",
+      "subject": "Csv.Document option QuoteStyle",
+      "left": "Direct_Shipments_Consolidator.xlsm!Open Order",
+      "left_value": "QuoteStyle.None",
+      "right": "Shipment_Request_HIE__Updated.xlsm!Open_Order_Report",
+      "right_value": "QuoteStyle.Csv",
+      "consequence": "QuoteStyle.None ignores CSV quoting, so any field containing a comma splits across columns and silently shifts every value after it on that row. The two queries are reading the same bytes into different tables.",
+      "recommendation": "Read the export once, with QuoteStyle.Csv, and reuse it."
+    },
+    {
+      "kind": "parse_option_conflict",
+      "severity": "blocking",
+      "upstream": "NetSuite File Cabinet export id=2600949 (account 3492685)",
+      "subject": "Csv.Document option QuoteStyle",
+      "left": "Shipment_Request_HIE__Updated.xlsm!Open_Order_Report",
+      "left_value": "QuoteStyle.Csv",
+      "right": "Supply_Chain_Update_Meeting_Workbook.xlsm!Customer Open Orders",
+      "right_value": "QuoteStyle.None",
+      "consequence": "QuoteStyle.None ignores CSV quoting, so any field containing a comma splits across columns and silently shifts every value after it on that row. The two queries are reading the same bytes into different tables.",
+      "recommendation": "Read the export once, with QuoteStyle.Csv, and reuse it."
+    },
+    {
+      "kind": "grain_difference",
+      "severity": "warning",
+      "upstream": "NetSuite File Cabinet export id=2600946 (account 3492685)",
+      "subject": "group-by keys",
+      "left": "Shipment_Request_HIE__Updated.xlsm!PO",
+      "left_value": "Item x Expected Receipt Date x Document Number x Line ID x Original PI Date",
+      "right": "Supply_Chain_Update_Meeting_Workbook.xlsm!Items On PO",
+      "right_value": "(no grouping)",
+      "consequence": "The two aggregate the export to different levels, so their row counts and totals are not comparable.",
+      "recommendation": "If both grains are genuinely needed, derive both from one extraction rather than reading the export twice."
+    },
+    {
+      "kind": "key_derivation_missing",
+      "severity": "warning",
+      "upstream": "NetSuite File Cabinet export id=2600946 (account 3492685)",
+      "subject": "key column \"SKU\"",
+      "left": "Shipment_Request_HIE__Updated.xlsm!PO",
+      "left_value": "(absent)",
+      "right": "Supply_Chain_Update_Meeting_Workbook.xlsm!Items On PO",
+      "right_value": "if Text.Contains([SKU], \":\") then Text.Trim(Text.AfterDelimiter([SKU], \":\")) else Text.Trim([SKU])",
+      "consequence": "Only Supply_Chain_Update_Meeting_Workbook.xlsm!Items On PO derives a key named \"SKU\"; the other side carries the raw value, so the two cannot be joined without a translation step.",
+      "recommendation": "Derive the key once, upstream of both."
+    },
+    {
+      "kind": "filter_divergence",
+      "severity": "warning",
+      "upstream": "NetSuite File Cabinet export id=2600947 (account 3492685)",
+      "subject": "row filters",
+      "left": "Shipment_Request_HIE__Updated.xlsm!Location_Inventory",
+      "left_value": "([Custom] = \"JAX\") and ([Available] <> null)",
+      "right": "Shipment_Request_HIE__Updated.xlsm!Regional Inv Loc",
+      "right_value": "(no filter)",
+      "consequence": "Different row scope from the same export. This is the usual reason two reports show different totals for what looks like the same thing.",
+      "recommendation": "Decide whether the narrower scope is correct, and apply it once."
+    },
+    {
+      "kind": "filter_divergence",
+      "severity": "warning",
+      "upstream": "NetSuite File Cabinet export id=2600947 (account 3492685)",
+      "subject": "row filters",
+      "left": "Shipment_Request_HIE__Updated.xlsm!Location_Inventory",
+      "left_value": "([Custom] = \"JAX\") and ([Available] <> null)",
+      "right": "Supply_Chain_Update_Meeting_Workbook.xlsm!Current Inventory",
+      "right_value": "([InvQty] <> null)",
+      "consequence": "Different row scope from the same export. This is the usual reason two reports show different totals for what looks like the same thing.",
+      "recommendation": "Decide whether the narrower scope is correct, and apply it once."
+    },
+    {
+      "kind": "filter_divergence",
+      "severity": "warning",
+      "upstream": "NetSuite File Cabinet export id=2600947 (account 3492685)",
+      "subject": "row filters",
+      "left": "Shipment_Request_HIE__Updated.xlsm!Regional Inv Loc",
+      "left_value": "(no filter)",
+      "right": "Supply_Chain_Update_Meeting_Workbook.xlsm!Current Inventory",
+      "right_value": "([InvQty] <> null)",
+      "consequence": "Different row scope from the same export. This is the usual reason two reports show different totals for what looks like the same thing.",
+      "recommendation": "Decide whether the narrower scope is correct, and apply it once."
+    },
+    {
+      "kind": "key_derivation_missing",
+      "severity": "warning",
+      "upstream": "NetSuite File Cabinet export id=2600947 (account 3492685)",
+      "subject": "key column \"Name\"",
+      "left": "Shipment_Request_HIE__Updated.xlsm!Location_Inventory",
+      "left_value": "if Text.Contains([Name], \":\") then Text.AfterDelimiter([Name], \":\") else [Name]",
+      "right": "Shipment_Request_HIE__Updated.xlsm!Regional Inv Loc",
+      "right_value": "(absent)",
+      "consequence": "Only Shipment_Request_HIE__Updated.xlsm!Location_Inventory derives a key named \"Name\"; the other side carries the raw value, so the two cannot be joined without a translation step.",
+      "recommendation": "Derive the key once, upstream of both."
+    },
+    {
+      "kind": "key_derivation_missing",
+      "severity": "warning",
+      "upstream": "NetSuite File Cabinet export id=2600947 (account 3492685)",
+      "subject": "key column \"SKU\"",
+      "left": "Shipment_Request_HIE__Updated.xlsm!Location_Inventory",
+      "left_value": "(absent)",
+      "right": "Shipment_Request_HIE__Updated.xlsm!Regional Inv Loc",
+      "right_value": "if Text.Contains([Name],\":\") then Text.AfterDelimiter([Name],\":\") else [Name]",
+      "consequence": "Only Shipment_Request_HIE__Updated.xlsm!Regional Inv Loc derives a key named \"SKU\"; the other side carries the raw value, so the two cannot be joined without a translation step.",
+      "recommendation": "Derive the key once, upstream of both."
+    },
+    {
+      "kind": "key_derivation_missing",
+      "severity": "warning",
+      "upstream": "NetSuite File Cabinet export id=2600947 (account 3492685)",
+      "subject": "key column \"Name\"",
+      "left": "Shipment_Request_HIE__Updated.xlsm!Location_Inventory",
+      "left_value": "if Text.Contains([Name], \":\") then Text.AfterDelimiter([Name], \":\") else [Name]",
+      "right": "Supply_Chain_Update_Meeting_Workbook.xlsm!Current Inventory",
+      "right_value": "(absent)",
+      "consequence": "Only Shipment_Request_HIE__Updated.xlsm!Location_Inventory derives a key named \"Name\"; the other side carries the raw value, so the two cannot be joined without a translation step.",
+      "recommendation": "Derive the key once, upstream of both."
+    },
+    {
+      "kind": "key_derivation_missing",
+      "severity": "warning",
+      "upstream": "NetSuite File Cabinet export id=2600947 (account 3492685)",
+      "subject": "key column \"Regional ID\"",
+      "left": "Shipment_Request_HIE__Updated.xlsm!Location_Inventory",
+      "left_value": "(absent)",
+      "right": "Supply_Chain_Update_Meeting_Workbook.xlsm!Current Inventory",
+      "right_value": "if [InvLoc] = \"INT Tradeshows\" then \"Tradeshow\" else if [InvLoc] = \"INT B2C\" then \"B2C\" else if [InvLoc] = \"INT B2B\" then \"Americas\" else if [InvLoc] = \"China O",
+      "consequence": "Only Supply_Chain_Update_Meeting_Workbook.xlsm!Current Inventory derives a key named \"Regional ID\"; the other side carries the raw value, so the two cannot be joined without a translation step.",
+      "recommendation": "Derive the key once, upstream of both."
+    },
+    {
+      "kind": "key_derivation_missing",
+      "severity": "warning",
+      "upstream": "NetSuite File Cabinet export id=2600947 (account 3492685)",
+      "subject": "key column \"SKU\"",
+      "left": "Shipment_Request_HIE__Updated.xlsm!Location_Inventory",
+      "left_value": "(absent)",
+      "right": "Supply_Chain_Update_Meeting_Workbook.xlsm!Current Inventory",
+      "right_value": "if Text.Contains([Item], \":\") then Text.Trim(Text.AfterDelimiter([Item], \":\")) else Text.Trim([Item])",
+      "consequence": "Only Supply_Chain_Update_Meeting_Workbook.xlsm!Current Inventory derives a key named \"SKU\"; the other side carries the raw value, so the two cannot be joined without a translation step.",
+      "recommendation": "Derive the key once, upstream of both."
+    },
+    {
+      "kind": "key_derivation_missing",
+      "severity": "warning",
+      "upstream": "NetSuite File Cabinet export id=2600947 (account 3492685)",
+      "subject": "key column \"Regional ID\"",
+      "left": "Shipment_Request_HIE__Updated.xlsm!Regional Inv Loc",
+      "left_value": "(absent)",
+      "right": "Supply_Chain_Update_Meeting_Workbook.xlsm!Current Inventory",
+      "right_value": "if [InvLoc] = \"INT Tradeshows\" then \"Tradeshow\" else if [InvLoc] = \"INT B2C\" then \"B2C\" else if [InvLoc] = \"INT B2B\" then \"Americas\" else if [InvLoc] = \"China O",
+      "consequence": "Only Supply_Chain_Update_Meeting_Workbook.xlsm!Current Inventory derives a key named \"Regional ID\"; the other side carries the raw value, so the two cannot be joined without a translation step.",
+      "recommendation": "Derive the key once, upstream of both."
+    },
+    {
+      "kind": "parse_option_conflict",
+      "severity": "warning",
+      "upstream": "NetSuite File Cabinet export id=2600947 (account 3492685)",
+      "subject": "Csv.Document option Columns",
+      "left": "Shipment_Request_HIE__Updated.xlsm!Location_Inventory",
+      "left_value": "(not set)",
+      "right": "Shipment_Request_HIE__Updated.xlsm!Regional Inv Loc",
+      "right_value": "24",
+      "consequence": "The same file is being parsed with different options, so the two queries can disagree on rows or columns before any transformation runs.",
+      "recommendation": "Standardise the parse options on one extraction."
+    },
+    {
+      "kind": "parse_option_conflict",
+      "severity": "warning",
+      "upstream": "NetSuite File Cabinet export id=2600947 (account 3492685)",
+      "subject": "Csv.Document option Columns",
+      "left": "Shipment_Request_HIE__Updated.xlsm!Location_Inventory",
+      "left_value": "(not set)",
+      "right": "Supply_Chain_Update_Meeting_Workbook.xlsm!Current Inventory",
+      "right_value": "24",
+      "consequence": "The same file is being parsed with different options, so the two queries can disagree on rows or columns before any transformation runs.",
+      "recommendation": "Standardise the parse options on one extraction."
+    },
+    {
+      "kind": "grain_difference",
+      "severity": "warning",
+      "upstream": "NetSuite File Cabinet export id=2600949 (account 3492685)",
+      "subject": "group-by keys",
+      "left": "Direct_Shipments_Consolidator.xlsm!Open Order",
+      "left_value": "Company Name x Sales Rep x Item",
+      "right": "Shipment_Request_HIE__Updated.xlsm!Open_Order_Report",
+      "right_value": "Ship Date x Territory x Item",
+      "consequence": "The two aggregate the export to different levels, so their row counts and totals are not comparable.",
+      "recommendation": "If both grains are genuinely needed, derive both from one extraction rather than reading the export twice."
+    },
+    {
+      "kind": "grain_difference",
+      "severity": "warning",
+      "upstream": "NetSuite File Cabinet export id=2600949 (account 3492685)",
+      "subject": "group-by keys",
+      "left": "Direct_Shipments_Consolidator.xlsm!Open Order",
+      "left_value": "Company Name x Sales Rep x Item",
+      "right": "Supply_Chain_Update_Meeting_Workbook.xlsm!Customer Open Orders",
+      "right_value": "Item x Ship Date x Regional ID x Document Number x Company Name x Commit x Sales Rep x Balance x Credit Limit x Credit Hold x Status x Item Rate",
+      "consequence": "The two aggregate the export to different levels, so their row counts and totals are not comparable.",
+      "recommendation": "If both grains are genuinely needed, derive both from one extraction rather than reading the export twice."
+    },
+    {
+      "kind": "grain_difference",
+      "severity": "warning",
+      "upstream": "NetSuite File Cabinet export id=2600949 (account 3492685)",
+      "subject": "group-by keys",
+      "left": "Shipment_Request_HIE__Updated.xlsm!Open_Order_Report",
+      "left_value": "Ship Date x Territory x Item",
+      "right": "Supply_Chain_Update_Meeting_Workbook.xlsm!Customer Open Orders",
+      "right_value": "Item x Ship Date x Regional ID x Document Number x Company Name x Commit x Sales Rep x Balance x Credit Limit x Credit Hold x Status x Item Rate",
+      "consequence": "The two aggregate the export to different levels, so their row counts and totals are not comparable.",
+      "recommendation": "If both grains are genuinely needed, derive both from one extraction rather than reading the export twice."
+    },
+    {
+      "kind": "key_derivation_missing",
+      "severity": "warning",
+      "upstream": "NetSuite File Cabinet export id=2600949 (account 3492685)",
+      "subject": "key column \"Regional ID\"",
+      "left": "Direct_Shipments_Consolidator.xlsm!Open Order",
+      "left_value": "(absent)",
+      "right": "Supply_Chain_Update_Meeting_Workbook.xlsm!Customer Open Orders",
+      "right_value": "if [Territory] = \"B2B Asia Pacific\" then \"AP\" else if [Territory] = \"B2B Canada\" then \"Americas\" else if [Territory] = \"B2B China\" then \"AP\" else if [Territory]",
+      "consequence": "Only Supply_Chain_Update_Meeting_Workbook.xlsm!Customer Open Orders derives a key named \"Regional ID\"; the other side carries the raw value, so the two cannot be joined without a translation step.",
+      "recommendation": "Derive the key once, upstream of both."
+    },
+    {
+      "kind": "key_derivation_missing",
+      "severity": "warning",
+      "upstream": "NetSuite File Cabinet export id=2600949 (account 3492685)",
+      "subject": "key column \"SKU\"",
+      "left": "Direct_Shipments_Consolidator.xlsm!Open Order",
+      "left_value": "(absent)",
+      "right": "Supply_Chain_Update_Meeting_Workbook.xlsm!Customer Open Orders",
+      "right_value": "if Text.Contains([SKU], \":\") then Text.Trim(Text.AfterDelimiter([SKU], \":\")) else Text.Trim([SKU])",
+      "consequence": "Only Supply_Chain_Update_Meeting_Workbook.xlsm!Customer Open Orders derives a key named \"SKU\"; the other side carries the raw value, so the two cannot be joined without a translation step.",
+      "recommendation": "Derive the key once, upstream of both."
+    },
+    {
+      "kind": "key_derivation_missing",
+      "severity": "warning",
+      "upstream": "NetSuite File Cabinet export id=2600949 (account 3492685)",
+      "subject": "key column \"Regional ID\"",
+      "left": "Shipment_Request_HIE__Updated.xlsm!Open_Order_Report",
+      "left_value": "(absent)",
+      "right": "Supply_Chain_Update_Meeting_Workbook.xlsm!Customer Open Orders",
+      "right_value": "if [Territory] = \"B2B Asia Pacific\" then \"AP\" else if [Territory] = \"B2B Canada\" then \"Americas\" else if [Territory] = \"B2B China\" then \"AP\" else if [Territory]",
+      "consequence": "Only Supply_Chain_Update_Meeting_Workbook.xlsm!Customer Open Orders derives a key named \"Regional ID\"; the other side carries the raw value, so the two cannot be joined without a translation step.",
+      "recommendation": "Derive the key once, upstream of both."
+    },
+    {
+      "kind": "key_derivation_missing",
+      "severity": "warning",
+      "upstream": "NetSuite File Cabinet export id=2600949 (account 3492685)",
+      "subject": "key column \"SKU\"",
+      "left": "Shipment_Request_HIE__Updated.xlsm!Open_Order_Report",
+      "left_value": "(absent)",
+      "right": "Supply_Chain_Update_Meeting_Workbook.xlsm!Customer Open Orders",
+      "right_value": "if Text.Contains([SKU], \":\") then Text.Trim(Text.AfterDelimiter([SKU], \":\")) else Text.Trim([SKU])",
+      "consequence": "Only Supply_Chain_Update_Meeting_Workbook.xlsm!Customer Open Orders derives a key named \"SKU\"; the other side carries the raw value, so the two cannot be joined without a translation step.",
+      "recommendation": "Derive the key once, upstream of both."
+    },
+    {
+      "kind": "parse_option_conflict",
+      "severity": "warning",
+      "upstream": "NetSuite File Cabinet export id=2600949 (account 3492685)",
+      "subject": "Csv.Document option Columns",
+      "left": "Direct_Shipments_Consolidator.xlsm!Open Order",
+      "left_value": "25",
+      "right": "Shipment_Request_HIE__Updated.xlsm!Open_Order_Report",
+      "right_value": "(not set)",
+      "consequence": "The same file is being parsed with different options, so the two queries can disagree on rows or columns before any transformation runs.",
+      "recommendation": "Standardise the parse options on one extraction."
+    },
+    {
+      "kind": "parse_option_conflict",
+      "severity": "warning",
+      "upstream": "NetSuite File Cabinet export id=2600949 (account 3492685)",
+      "subject": "Csv.Document option Columns",
+      "left": "Shipment_Request_HIE__Updated.xlsm!Open_Order_Report",
+      "left_value": "(not set)",
+      "right": "Supply_Chain_Update_Meeting_Workbook.xlsm!Customer Open Orders",
+      "right_value": "25",
+      "consequence": "The same file is being parsed with different options, so the two queries can disagree on rows or columns before any transformation runs.",
+      "recommendation": "Standardise the parse options on one extraction."
+    },
+    {
+      "kind": "filter_divergence",
+      "severity": "warning",
+      "upstream": "NetSuite File Cabinet export id=2606291 (account 3492685)",
+      "subject": "row filters",
+      "left": "Shipment_Request_HIE__Updated.xlsm!NetSuite Forecast",
+      "left_value": "([Forecast Qty] <> null and [Forecast Qty] <> 0)",
+      "right": "Supply_Chain_Update_Meeting_Workbook.xlsm!Forecast Qty",
+      "right_value": "[Forecast Qty] <> 0 and [Forecast Qty] <> null",
+      "consequence": "Different row scope from the same export. This is the usual reason two reports show different totals for what looks like the same thing.",
+      "recommendation": "Decide whether the narrower scope is correct, and apply it once."
+    },
+    {
+      "kind": "grain_difference",
+      "severity": "warning",
+      "upstream": "NetSuite File Cabinet export id=2606291 (account 3492685)",
+      "subject": "group-by keys",
+      "left": "Shipment_Request_HIE__Updated.xlsm!NetSuite Forecast",
+      "left_value": "Item x Allocation Group x Forecast Mnth x Product Category",
+      "right": "Supply_Chain_Update_Meeting_Workbook.xlsm!Forecast Qty",
+      "right_value": "(no grouping)",
+      "consequence": "The two aggregate the export to different levels, so their row counts and totals are not comparable.",
+      "recommendation": "If both grains are genuinely needed, derive both from one extraction rather than reading the export twice."
+    },
+    {
+      "kind": "filter_divergence",
+      "severity": "warning",
+      "upstream": "NetSuite File Cabinet export id=2620991 (account 3492685)",
+      "subject": "row filters",
+      "left": "Shipment_Request_HIE__Updated.xlsm!New Prod Alloc",
+      "left_value": "([Name] <> \"BC8 PRE P3 BLU LL\" and [Name] <> \"BC8 PRE P3 BLU NW\" and [Name] <> \"BC8 PRE P3 RED LL\" and [Name] <> \"BC8 PRE P3 RED NW\" and [Name] <> \"BCP PRE 10K BLK\" and [Name] <> \"BCP PRE 10K CHS\" and [Name] <> \"BCP PRE 10K GLD\" and [Name] <> \"BCP PRE 10K PUR\" and [Name] <> \"BCP PRE BK RUSH 2 NW\" and [Name] <> \"BCP PRE BK RUSH 2 SW\" and [Name] <> \"BCP PRE BK RUSH OVRD NW\" and [Name] <> \"BCP PRE BK RUSH OVRD SW\" and [Name] <> \"BCP PRE BK RUSH VNM NW\" and [Name] <> \"BCP PRE BK RUSH VNM SW\" and [Name] <> \"BCP PRE BLA5 1\" and [Name] <> \"BCP PRE BLA5 2\" and [Name] <> \"BCP PRE BLA5 3\" and [Name] <> \"BCP PRE BLA5 4\" and [Name] <> \"BCP PRE BLA5 5\" and [Name] <> \"BCP PRE BLA5 CE 1\" and [Name] <> \"BCP PRE BLA5 CE 2\" and [Name] <> \"C PRE ROAD 2B4S GRY/BLK H\" and [Name] <> \"C PRE ROAD 3B5S GRY/BLK H\" and [Name] <> \"C PRE ROAD 4B8S GRY/BLK S\")",
+      "right": "Supply_Chain_Update_Meeting_Workbook.xlsm!New Product Allocations",
+      "right_value": "(no filter)",
+      "consequence": "Different row scope from the same export. This is the usual reason two reports show different totals for what looks like the same thing.",
+      "recommendation": "Decide whether the narrower scope is correct, and apply it once."
+    },
+    {
+      "kind": "measure_name_conflict",
+      "severity": "info",
+      "upstream": "NetSuite File Cabinet export id=2600947 (account 3492685)",
+      "subject": "List.Sum([On Hand])",
+      "left": "Shipment_Request_HIE__Updated.xlsm!Location_Inventory",
+      "left_value": "Available",
+      "right": "Supply_Chain_Update_Meeting_Workbook.xlsm!Current Inventory",
+      "right_value": "InvQty",
+      "consequence": "The same measure is labelled differently in each workbook, so a reader cannot tell they are the same number.",
+      "recommendation": "Adopt one column name in the canonical layer."
+    },
+    {
+      "kind": "measure_name_conflict",
+      "severity": "info",
+      "upstream": "NetSuite File Cabinet export id=2600949 (account 3492685)",
+      "subject": "List.Sum([Back Order Qty])",
+      "left": "Direct_Shipments_Consolidator.xlsm!Open Order",
+      "left_value": "Qty_BO",
+      "right": "Shipment_Request_HIE__Updated.xlsm!Open_Order_Report",
+      "right_value": "BO",
+      "consequence": "The same measure is labelled differently in each workbook, so a reader cannot tell they are the same number.",
+      "recommendation": "Adopt one column name in the canonical layer."
+    },
+    {
+      "kind": "measure_name_conflict",
+      "severity": "info",
+      "upstream": "NetSuite File Cabinet export id=2600949 (account 3492685)",
+      "subject": "List.Sum([Back Order Qty])",
+      "left": "Direct_Shipments_Consolidator.xlsm!Open Order",
+      "left_value": "Qty_BO",
+      "right": "Supply_Chain_Update_Meeting_Workbook.xlsm!Customer Open Orders",
+      "right_value": "TtlBO",
+      "consequence": "The same measure is labelled differently in each workbook, so a reader cannot tell they are the same number.",
+      "recommendation": "Adopt one column name in the canonical layer."
+    },
+    {
+      "kind": "measure_name_conflict",
+      "severity": "info",
+      "upstream": "NetSuite File Cabinet export id=2600949 (account 3492685)",
+      "subject": "List.Sum([Back Order Qty])",
+      "left": "Shipment_Request_HIE__Updated.xlsm!Open_Order_Report",
+      "left_value": "BO",
+      "right": "Supply_Chain_Update_Meeting_Workbook.xlsm!Customer Open Orders",
+      "right_value": "TtlBO",
+      "consequence": "The same measure is labelled differently in each workbook, so a reader cannot tell they are the same number.",
+      "recommendation": "Adopt one column name in the canonical layer."
+    }
+  ],
+  "query_profiles": [
+    {
+      "workbook": "Direct_Shipments_Consolidator.xlsm",
+      "query": "Open Order",
+      "upstream_key": "netsuite:media:2600949",
+      "upstream_label": "NetSuite File Cabinet export id=2600949 (account 3492685)",
+      "reader": "Csv.Document",
+      "fetcher": "Web.Contents",
+      "parse_options": {
+        "Delimiter": ",",
+        "Columns": "25",
+        "Encoding": "65001",
+        "QuoteStyle": "QuoteStyle.None"
+      },
+      "grain": [
+        "Company Name",
+        "Sales Rep",
+        "Item"
+      ],
+      "measures": {
+        "Rate": "List.Average([Item Rate])",
+        "Ready to Ship": "List.Sum([Amount Ready To Ship])",
+        "Back Ordered": "List.Sum([Back Order Amount])",
+        "Qty_RTS": "List.Sum([Qty Committed])",
+        "Qty_BO": "List.Sum([Back Order Qty])"
+      },
+      "filters": [],
+      "key_derivations": {},
+      "output_columns": [],
+      "step_count": 4
+    },
+    {
+      "workbook": "Shipment_Request_HIE__Updated.xlsm",
+      "query": "HIE Shipment",
+      "upstream_key": "file:supply chain update meeting workbook.xlsm",
+      "upstream_label": "Supply Chain Update Meeting Workbook.xlsm",
+      "reader": "Excel.Workbook",
+      "fetcher": "File.Contents",
+      "parse_options": {},
+      "grain": [],
+      "measures": {},
+      "filters": [],
+      "key_derivations": {},
+      "output_columns": [],
+      "step_count": 4
+    },
+    {
+      "workbook": "Shipment_Request_HIE__Updated.xlsm",
+      "query": "Location_Inventory",
+      "upstream_key": "netsuite:media:2600947",
+      "upstream_label": "NetSuite File Cabinet export id=2600947 (account 3492685)",
+      "reader": "Csv.Document",
+      "fetcher": "Web.Contents",
+      "parse_options": {
+        "Delimiter": ",",
+        "Encoding": "65001",
+        "QuoteStyle": "QuoteStyle.Csv"
+      },
+      "grain": [
+        "Inventory Location",
+        "Name"
+      ],
+      "measures": {
+        "Available": "List.Sum([On Hand])"
+      },
+      "filters": [
+        "([Custom] = \"JAX\") and ([Available] <> null)"
+      ],
+      "key_derivations": {
+        "Name": "if Text.Contains([Name], \":\") then Text.AfterDelimiter([Name], \":\") else [Name]"
+      },
+      "output_columns": [
+        "Inventory Location",
+        "Custom.1",
+        "Name",
+        "Available",
+        "Custom"
+      ],
+      "step_count": 11
+    },
+    {
+      "workbook": "Shipment_Request_HIE__Updated.xlsm",
+      "query": "NetSuite Forecast",
+      "upstream_key": "netsuite:media:2606291",
+      "upstream_label": "NetSuite File Cabinet export id=2606291 (account 3492685)",
+      "reader": "Csv.Document",
+      "fetcher": "Web.Contents",
+      "parse_options": {
+        "Delimiter": ",",
+        "Columns": "42",
+        "Encoding": "65001",
+        "QuoteStyle": "QuoteStyle.None"
+      },
+      "grain": [
+        "Item",
+        "Allocation Group",
+        "Forecast Mnth",
+        "Product Category"
+      ],
+      "measures": {
+        "Forecast Qty": "List.Sum([Value])"
+      },
+      "filters": [
+        "([Forecast Qty] <> null and [Forecast Qty] <> 0)"
+      ],
+      "key_derivations": {},
+      "output_columns": [
+        "Item",
+        "Allocation Group",
+        "Forecast Mnth",
+        "Forecast Qty",
+        "Product Category"
+      ],
+      "step_count": 12
+    },
+    {
+      "workbook": "Shipment_Request_HIE__Updated.xlsm",
+      "query": "New Prod Alloc",
+      "upstream_key": "netsuite:media:2620991",
+      "upstream_label": "NetSuite File Cabinet export id=2620991 (account 3492685)",
+      "reader": "Csv.Document",
+      "fetcher": "Web.Contents",
+      "parse_options": {
+        "Delimiter": ",",
+        "Columns": "12",
+        "Encoding": "65001",
+        "QuoteStyle": "QuoteStyle.None"
+      },
+      "grain": [],
+      "measures": {},
+      "filters": [
+        "([Name] <> \"BC8 PRE P3 BLU LL\" and [Name] <> \"BC8 PRE P3 BLU NW\" and [Name] <> \"BC8 PRE P3 RED LL\" and [Name] <> \"BC8 PRE P3 RED NW\" and [Name] <> \"BCP PRE 10K BLK\" and [Name] <> \"BCP PRE 10K CHS\" and [Name] <> \"BCP PRE 10K GLD\" and [Name] <> \"BCP PRE 10K PUR\" and [Name] <> \"BCP PRE BK RUSH 2 NW\" and [Name] <> \"BCP PRE BK RUSH 2 SW\" and [Name] <> \"BCP PRE BK RUSH OVRD NW\" and [Name] <> \"BCP PRE BK RUSH OVRD SW\" and [Name] <> \"BCP PRE BK RUSH VNM NW\" and [Name] <> \"BCP PRE BK RUSH VNM SW\" and [Name] <> \"BCP PRE BLA5 1\" and [Name] <> \"BCP PRE BLA5 2\" and [Name] <> \"BCP PRE BLA5 3\" and [Name] <> \"BCP PRE BLA5 4\" and [Name] <> \"BCP PRE BLA5 5\" and [Name] <> \"BCP PRE BLA5 CE 1\" and [Name] <> \"BCP PRE BLA5 CE 2\" and [Name] <> \"C PRE ROAD 2B4S GRY/BLK H\" and [Name] <> \"C PRE ROAD 3B5S GRY/BLK H\" and [Name] <> \"C PRE ROAD 4B8S GRY/BLK S\")"
+      ],
+      "key_derivations": {},
+      "output_columns": [],
+      "step_count": 5
+    },
+    {
+      "workbook": "Shipment_Request_HIE__Updated.xlsm",
+      "query": "Open_Order_Report",
+      "upstream_key": "netsuite:media:2600949",
+      "upstream_label": "NetSuite File Cabinet export id=2600949 (account 3492685)",
+      "reader": "Csv.Document",
+      "fetcher": "Web.Contents",
+      "parse_options": {
+        "Delimiter": ",",
+        "Encoding": "65001",
+        "QuoteStyle": "QuoteStyle.Csv"
+      },
+      "grain": [
+        "Ship Date",
+        "Territory",
+        "Item"
+      ],
+      "measures": {
+        "BO": "List.Sum([Back Order Qty])"
+      },
+      "filters": [],
+      "key_derivations": {},
+      "output_columns": [],
+      "step_count": 8
+    },
+    {
+      "workbook": "Shipment_Request_HIE__Updated.xlsm",
+      "query": "PO",
+      "upstream_key": "netsuite:media:2600946",
+      "upstream_label": "NetSuite File Cabinet export id=2600946 (account 3492685)",
+      "reader": "Csv.Document",
+      "fetcher": "Web.Contents",
+      "parse_options": {
+        "Delimiter": ",",
+        "Columns": "19",
+        "Encoding": "65001",
+        "QuoteStyle": "QuoteStyle.None"
+      },
+      "grain": [
+        "Item",
+        "Expected Receipt Date",
+        "Document Number",
+        "Line ID",
+        "Original PI Date"
+      ],
+      "measures": {
+        "Qty": "List.Sum([Quantity Remaining])"
+      },
+      "filters": [],
+      "key_derivations": {},
+      "output_columns": [
+        "Item",
+        "Expected Receipt Date",
+        "Qty",
+        "Document Number",
+        "Line ID"
+      ],
+      "step_count": 7
+    },
+    {
+      "workbook": "Shipment_Request_HIE__Updated.xlsm",
+      "query": "Regional Inv Loc",
+      "upstream_key": "netsuite:media:2600947",
+      "upstream_label": "NetSuite File Cabinet export id=2600947 (account 3492685)",
+      "reader": "Csv.Document",
+      "fetcher": "Web.Contents",
+      "parse_options": {
+        "Delimiter": ",",
+        "Columns": "24",
+        "Encoding": "65001",
+        "QuoteStyle": "QuoteStyle.None"
+      },
+      "grain": [
+        "Name",
+        "Inventory Location"
+      ],
+      "measures": {
+        "Available": "List.Sum([Available])"
+      },
+      "filters": [],
+      "key_derivations": {
+        "SKU": "if Text.Contains([Name],\":\") then Text.AfterDelimiter([Name],\":\") else [Name]"
+      },
+      "output_columns": [
+        "SKU",
+        "Inventory Location",
+        "Available",
+        "Region Inv Loc"
+      ],
+      "step_count": 8
+    },
+    {
+      "workbook": "Shipment_Request_HIE__Updated.xlsm",
+      "query": "Sales",
+      "upstream_key": "netsuite:media:2600950",
+      "upstream_label": "NetSuite File Cabinet export id=2600950 (account 3492685)",
+      "reader": "Csv.Document",
+      "fetcher": "Web.Contents",
+      "parse_options": {
+        "Delimiter": ",",
+        "Columns": "15",
+        "Encoding": "65001",
+        "QuoteStyle": "QuoteStyle.None"
+      },
+      "grain": [
+        "Date",
+        "Item",
+        "Territory"
+      ],
+      "measures": {
+        "Quantity": "List.Sum([Sum of Quantity])"
+      },
+      "filters": [
+        "([Regional ID] <> null)"
+      ],
+      "key_derivations": {
+        "Regional ID": "if [Territory] = \"B2B United States\" then \"Americas\" else if [Territory] = \"B2B Canada\" then \"Americas\" else if [Territory] = \"B2B Latin America\" then \"Americas\" else if [Territory] = \"B2B Europe\" then \"EMEA\" else if [Territory] = \"Beckmann\" then \"EMEA\" else if [Territory] = \"B2B Middle East & Africa\" then \"EMEA\" else if [Territory] = \"B2B China\" then \"AP\" else if [Territory] = \"B2B Japan\" then \"AP\" else if [Territory] = \"B2B Asia Pacific\" then \"AP\" else if [Territory] = \"B2C United States\" then \"B2C\" else if [Territory] = \"Tradeshows\" then \"Tradeshows\" else if [Territory] = \"Sponsorships\" then \"Sponsorships\" else null"
+      },
+      "output_columns": [],
+      "step_count": 7
+    },
+    {
+      "workbook": "Supply_Chain_Update_Meeting_Workbook.xlsm",
+      "query": "Current Inventory",
+      "upstream_key": "netsuite:media:2600947",
+      "upstream_label": "NetSuite File Cabinet export id=2600947 (account 3492685)",
+      "reader": "Csv.Document",
+      "fetcher": "Web.Contents",
+      "parse_options": {
+        "Delimiter": ",",
+        "Columns": "24",
+        "Encoding": "65001",
+        "QuoteStyle": "QuoteStyle.None"
+      },
+      "grain": [
+        "Name",
+        "Inventory Location"
+      ],
+      "measures": {
+        "InvQty": "List.Sum([On Hand])"
+      },
+      "filters": [
+        "([InvQty] <> null)"
+      ],
+      "key_derivations": {
+        "Regional ID": "if [InvLoc] = \"INT Tradeshows\" then \"Tradeshow\" else if [InvLoc] = \"INT B2C\" then \"B2C\" else if [InvLoc] = \"INT B2B\" then \"Americas\" else if [InvLoc] = \"China Office\" then \"China\" else if [InvLoc] = \"US B2C\" then \"B2C\" else if [InvLoc] = \"US B2B\" then \"Americas\" else if [InvLoc] = \"Sunray\" then \"China\" else if [InvLoc] = \"HIE\" then \"China\" else if [InvLoc] = \"Jax Tradeshows\" then \"Tradeshow\" else if [InvLoc] = \"Direct Shipments\" then \"China\" else null",
+        "SKU": "if Text.Contains([Item], \":\") then Text.Trim(Text.AfterDelimiter([Item], \":\")) else Text.Trim([Item])"
+      },
+      "output_columns": [
+        "SKU",
+        "InvLoc",
+        "InvQty",
+        "Regional ID",
+        "REVO Region"
+      ],
+      "step_count": 13
+    },
+    {
+      "workbook": "Supply_Chain_Update_Meeting_Workbook.xlsm",
+      "query": "Customer Open Orders",
+      "upstream_key": "netsuite:media:2600949",
+      "upstream_label": "NetSuite File Cabinet export id=2600949 (account 3492685)",
+      "reader": "Csv.Document",
+      "fetcher": "Web.Contents",
+      "parse_options": {
+        "Delimiter": ",",
+        "Columns": "25",
+        "Encoding": "65001",
+        "QuoteStyle": "QuoteStyle.None"
+      },
+      "grain": [
+        "Item",
+        "Ship Date",
+        "Regional ID",
+        "Document Number",
+        "Company Name",
+        "Commit",
+        "Sales Rep",
+        "Balance",
+        "Credit Limit",
+        "Credit Hold",
+        "Status",
+        "Item Rate"
+      ],
+      "measures": {
+        "TtlBO": "List.Sum([Back Order Qty])"
+      },
+      "filters": [],
+      "key_derivations": {
+        "Regional ID": "if [Territory] = \"B2B Asia Pacific\" then \"AP\" else if [Territory] = \"B2B Canada\" then \"Americas\" else if [Territory] = \"B2B China\" then \"AP\" else if [Territory] = \"B2B Europe\" then \"EMEA\" else if [Territory] = \"B2B Japan\" then \"AP\" else if [Territory] = \"B2B Latin America\" then \"Americas\" else if [Territory] = \"B2B Middle East & Africa\" then \"EMEA\" else if [Territory] = \"B2B United States\" then \"Americas\" else if [Territory] = \"B2C Europe\" then \"B2C\" else if [Territory] = \"B2C International\" then \"B2C\" else if [Territory] = \"B2C United States\" then \"B2C\" else null",
+        "SKU": "if Text.Contains([SKU], \":\") then Text.Trim(Text.AfterDelimiter([SKU], \":\")) else Text.Trim([SKU])"
+      },
+      "output_columns": [
+        "Item",
+        "Ship Date",
+        "Regional ID",
+        "TtlBO"
+      ],
+      "step_count": 12
+    },
+    {
+      "workbook": "Supply_Chain_Update_Meeting_Workbook.xlsm",
+      "query": "Forecast Qty",
+      "upstream_key": "netsuite:media:2606291",
+      "upstream_label": "NetSuite File Cabinet export id=2606291 (account 3492685)",
+      "reader": "Csv.Document",
+      "fetcher": "Web.Contents",
+      "parse_options": {
+        "Delimiter": ",",
+        "Columns": "42",
+        "Encoding": "65001",
+        "QuoteStyle": "QuoteStyle.None"
+      },
+      "grain": [],
+      "measures": {},
+      "filters": [
+        "[Forecast Qty] <> 0 and [Forecast Qty] <> null"
+      ],
+      "key_derivations": {
+        "Item": "if Text.Contains([SKU], \":\") then Text.Trim(Text.AfterDelimiter([SKU], \":\")) else Text.Trim([SKU])"
+      },
+      "output_columns": [
+        "Item",
+        "Forecast Qty",
+        "Regional ID",
+        "YearMonth",
+        "REVO Region",
+        "Product Category",
+        "SKU",
+        "Sub Location",
+        "Year",
+        "Month",
+        "Lead Group",
+        "Territory"
+      ],
+      "step_count": 18
+    },
+    {
+      "workbook": "Supply_Chain_Update_Meeting_Workbook.xlsm",
+      "query": "HIEInv",
+      "upstream_key": "file:shipment request hie .xlsm",
+      "upstream_label": "Shipment Request HIE .xlsm",
+      "reader": "Excel.Workbook",
+      "fetcher": "File.Contents",
+      "parse_options": {},
+      "grain": [
+        "SKU"
+      ],
+      "measures": {
+        "Ttl Qty": "List.Sum([Qty])",
+        "HIE Inv": "List.Sum([Ttl Qty])"
+      },
+      "filters": [],
+      "key_derivations": {},
+      "output_columns": [],
+      "step_count": 7
+    },
+    {
+      "workbook": "Supply_Chain_Update_Meeting_Workbook.xlsm",
+      "query": "HIEProdFlat",
+      "upstream_key": "file:shipment request hie - updated.xlsm",
+      "upstream_label": "Shipment Request HIE - Updated.xlsm",
+      "reader": "Excel.Workbook",
+      "fetcher": "File.Contents",
+      "parse_options": {},
+      "grain": [],
+      "measures": {},
+      "filters": [],
+      "key_derivations": {},
+      "output_columns": [],
+      "step_count": 5
+    },
+    {
+      "workbook": "Supply_Chain_Update_Meeting_Workbook.xlsm",
+      "query": "Items On PO",
+      "upstream_key": "netsuite:media:2600946",
+      "upstream_label": "NetSuite File Cabinet export id=2600946 (account 3492685)",
+      "reader": "Csv.Document",
+      "fetcher": "Web.Contents",
+      "parse_options": {
+        "Delimiter": ",",
+        "Columns": "19",
+        "Encoding": "65001",
+        "QuoteStyle": "QuoteStyle.None"
+      },
+      "grain": [],
+      "measures": {},
+      "filters": [],
+      "key_derivations": {
+        "SKU": "if Text.Contains([SKU], \":\") then Text.Trim(Text.AfterDelimiter([SKU], \":\")) else Text.Trim([SKU])"
+      },
+      "output_columns": [
+        "Date",
+        "Expected Receipt Date",
+        "Original PI Date",
+        "Legacy PO #",
+        "Status",
+        "Document Number",
+        "Name",
+        "Inventory Location",
+        "Line ID",
+        "Product Category",
+        "SKU",
+        "Item",
+        "Quantity",
+        "Quantity Fulfilled/Received",
+        "Quantity Remaining",
+        "Amount",
+        "$ Remaining",
+        "Closed",
+        "Memo (Main)",
+        "Item Note"
+      ],
+      "step_count": 8
+    },
+    {
+      "workbook": "Supply_Chain_Update_Meeting_Workbook.xlsm",
+      "query": "JingdianProdFlat",
+      "upstream_key": "file:shipment request hie - updated.xlsm",
+      "upstream_label": "Shipment Request HIE - Updated.xlsm",
+      "reader": "Excel.Workbook",
+      "fetcher": "File.Contents",
+      "parse_options": {},
+      "grain": [],
+      "measures": {},
+      "filters": [],
+      "key_derivations": {},
+      "output_columns": [],
+      "step_count": 4
+    },
+    {
+      "workbook": "Supply_Chain_Update_Meeting_Workbook.xlsm",
+      "query": "New Product Allocations",
+      "upstream_key": "netsuite:media:2620991",
+      "upstream_label": "NetSuite File Cabinet export id=2620991 (account 3492685)",
+      "reader": "Csv.Document",
+      "fetcher": "Web.Contents",
+      "parse_options": {
+        "Delimiter": ",",
+        "Columns": "12",
+        "Encoding": "65001",
+        "QuoteStyle": "QuoteStyle.None"
+      },
+      "grain": [],
+      "measures": {},
+      "filters": [],
+      "key_derivations": {},
+      "output_columns": [],
+      "step_count": 4
+    },
+    {
+      "workbook": "Supply_Chain_Update_Meeting_Workbook.xlsm",
+      "query": "PoisonInvFlat",
+      "upstream_key": "file:shipment request hie - updated.xlsm",
+      "upstream_label": "Shipment Request HIE - Updated.xlsm",
+      "reader": "Excel.Workbook",
+      "fetcher": "File.Contents",
+      "parse_options": {},
+      "grain": [],
+      "measures": {},
+      "filters": [],
+      "key_derivations": {},
+      "output_columns": [],
+      "step_count": 4
+    },
+    {
+      "workbook": "Supply_Chain_Update_Meeting_Workbook.xlsm",
+      "query": "Purchase Price",
+      "upstream_key": "netsuite:media:2613629",
+      "upstream_label": "NetSuite File Cabinet export id=2613629 (account 3492685)",
+      "reader": "Csv.Document",
+      "fetcher": "Web.Contents",
+      "parse_options": {
+        "Delimiter": ",",
+        "Columns": "36",
+        "Encoding": "65001",
+        "QuoteStyle": "QuoteStyle.None"
+      },
+      "grain": [
+        "Name",
+        "Item Parent Sub",
+        "Product Category (no hierarchy)"
+      ],
+      "measures": {
+        "Average Cost": "List.Max([Average Cost])"
+      },
+      "filters": [],
+      "key_derivations": {
+        "SKU": "if Text.Contains([Name], \":\") then Text.Trim(Text.AfterDelimiter([Name], \":\")) else Text.Trim([Name])"
+      },
+      "output_columns": [
+        "SKU",
+        "Item Parent Sub",
+        "Product Category (no hierarchy)",
+        "Average Cost"
+      ],
+      "step_count": 7
+    },
+    {
+      "workbook": "Supply_Chain_Update_Meeting_Workbook.xlsm",
+      "query": "ValidatedSales",
+      "upstream_key": "sharepoint:https://predatorgroup.sharepoint.com/share%20all%20files/forecast/reference/actuals%20vs%20forecast%20archive/sales%20actuals%20+%20forecast%20for%20actuals%20vs%20forecast.xlsx",
+      "upstream_label": "https://predatorgroup.sharepoint.com/Share%20All%20Files/Forecast/Reference/Actuals%20vs%20Forecast%20Archive/Sales%20Actuals%20+%20Forecast%20for%20Actuals%20vs%20Forecast.xlsx",
+      "reader": "Excel.Workbook",
+      "fetcher": "Web.Contents",
+      "parse_options": {},
+      "grain": [
+        "Location_lvl_2",
+        "YYYYMM",
+        "Name",
+        "Year"
+      ],
+      "measures": {
+        "Units": "List.Sum([Sum of Sum of Quantity])"
+      },
+      "filters": [
+        "([Year] = 2025 or [Year] = 2026)",
+        "([Location_lvl_2] <> \"Cross Subsidy\" and [Location_lvl_2] <> \"Elimination\" and [Location_lvl_2] <> \"Non-Inventory\")"
+      ],
+      "key_derivations": {
+        "SKU": "if Text.Contains([Name],\":\") then Text.AfterDelimiter([Name],\":\") else [Name]"
+      },
+      "output_columns": [
+        "Location_lvl_2",
+        "YYYYMM",
+        "Name",
+        "Units",
+        "Year"
+      ],
+      "step_count": 10
+    }
+  ]
+}

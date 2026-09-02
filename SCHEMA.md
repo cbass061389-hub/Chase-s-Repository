@@ -71,6 +71,65 @@ the older file. That is a live wrong-number bug, and the sweep could not find th
 older file at all — so it may already be gone, in which case that query is
 failing silently or serving a cached result.
 
+### 5. Two calculation engines are running on destroyed references
+
+`python -m sc.cli formulas` read the formulas directly out of the XML — which
+works even though the VBA is locked — and collapsed 261,423 of them into their
+patterns. Two results are not design questions, they are live defects:
+
+| Sheet | Column | Broken | Total | Share |
+|---|---|---|---|---|
+| `Position Engine` | P — Monthly Run Rate | **2,213** | 2,213 | **100%** |
+| `__CleanBO` | A — Item | 2,909 | 9,362 | 31% |
+| `__CleanBO` | B — Channel (Regional ID) | 2,909 | 9,362 | 31% |
+| `__CleanBO` | C — Live BO Qty | 2,909 | 9,362 | 31% |
+| `__CleanBO` | D — Live BO $ | 2,909 | 9,362 | 31% |
+
+`Position Engine` column P is `#REF!` in **every** row. Monthly Run Rate is the
+denominator of months-of-supply, so overstock, dead stock and every Worst Flag
+derived from it are currently computed from a broken reference. `__CleanBO`
+loses about a third of its back-order rows the same way — `'Open Order
+Report'!#REF!` instead of `'Open Order Report'!A{r}`.
+
+A `#REF!` in the formula *text* means the range it pointed at was deleted, not
+that a calculation failed. Both sheets are hidden, so nothing surfaces it.
+Since `Open Order Report` is Power Query output, a refresh that returned a
+different shape is the likely cause.
+
+**This is the most urgent thing in this document, and it is independent of every
+decision below.** Check it before the next S&OP meeting.
+
+### 6. The good news: the allocation logic is recoverable
+
+The engines are otherwise clean — 100% pattern consistency, no volatile
+functions, no whole-column references. `__Alloc Engine` reads as a priority
+waterfall with a leftover sweep:
+
+```excel
+Base Alloc (pre-sweep) = FLOOR(MIN(Q{r}, MAX(0, L{r}-R{r})), 1)
+PriorUnmet             = SUMIFS($AB{r}:$AB{r}, $A{r}:$A{r},$A{r}, $C{r}:$C{r},"<"&$C{r})
+SKU Leftover           = MAX(0, L{r} - SUMIFS($AA{r}:$AA{r}, $A{r}:$A{r},$A{r}))
+```
+
+That is portable without the VBA. `discovery/FORMULA_MAP.md` has all 196 formula
+columns with their definitions. What the VBA still owns is *orchestration* —
+when the engine runs and what it does with the result — not the arithmetic. That
+narrows decision 5 considerably.
+
+### 7. A fourth SKU derivation, and it settles the rule
+
+`BOMMaster` derives SKUs a fourth way:
+
+```excel
+IFERROR(_xlfn.TEXTAFTER($B{r}, " : ", -1), $B{r})
+```
+
+`TEXTAFTER(..., -1)` takes the **last** occurrence, and the delimiter is `" : "`
+with spaces. Together with the three Power Query variants this confirms the
+canonical rule now in `canonical.sku`: split on the last `:`, then trim. All four
+variants agree on intent; they disagreed only on whitespace handling, which is
+exactly the bug.
+
 ### 4. Scale, and what it means for the model
 
 | | Meeting | HIE | DSR |
@@ -373,6 +432,10 @@ Warnings that do *not* block: unknown `data_as_of`, low forecast confidence,
 
 Phase 2 is blocked on these. They are narrower than they were before the sweep —
 the workbooks answered most of the earlier questions themselves.
+
+0. **The `#REF!` breakage above.** Not a model decision — a defect. `Position
+   Engine` column P is 100% broken and `__CleanBO` is 31% broken. Tell me what
+   those formulas should point at and I will fix them, or confirm you have.
 
 1. **Break the cycle — which direction?** My recommendation: the HIE workbook is
    upstream for production and supplier-held inventory; the meeting workbook

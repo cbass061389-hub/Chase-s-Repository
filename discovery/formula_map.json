@@ -1,0 +1,3082 @@
+{
+  "generated_at": "2026-09-02T18:05:45+00:00",
+  "min_formulas": 1000,
+  "sheets": [
+    {
+      "workbook": "Supply_Chain_Update_Meeting_Workbook.xlsm",
+      "sheet": "Position Engine",
+      "state": "veryHidden",
+      "formula_count": 59751,
+      "referenced_sheets": [
+        "Current Inventory",
+        "Forecast Qty",
+        "Items on PO",
+        "Open Order Report",
+        "PE Config",
+        "Purchase Price",
+        "REF",
+        "__AllocMix"
+      ],
+      "lookup_usage": {
+        "VLOOKUP": 19917
+      },
+      "volatile_usage": {},
+      "whole_column_references": 0,
+      "broken_reference_cells": 2213,
+      "error": null,
+      "columns": [
+        {
+          "column": "C",
+          "header": "Owner",
+          "cells": 2213,
+          "first_row": 2,
+          "last_row": 2214,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IFERROR(VLOOKUP($B{r},'PE Config'!$A{r}:$B{r},2,FALSE),\"\")",
+          "other_patterns": []
+        },
+        {
+          "column": "E",
+          "header": "Product Category",
+          "cells": 2213,
+          "first_row": 2,
+          "last_row": 2214,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IFERROR(VLOOKUP($A{r},'Purchase Price'!$A{r}:$C{r},3,FALSE),\"\")",
+          "other_patterns": []
+        },
+        {
+          "column": "F",
+          "header": "Avg Cost",
+          "cells": 2213,
+          "first_row": 2,
+          "last_row": 2214,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IFERROR(VLOOKUP($A{r},'Purchase Price'!$A{r}:$D{r},4,FALSE),\"\")",
+          "other_patterns": []
+        },
+        {
+          "column": "G",
+          "header": "On Hand",
+          "cells": 2213,
+          "first_row": 2,
+          "last_row": 2214,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS('Current Inventory'!$C{r}:$C{r},'Current Inventory'!$A{r}:$A{r},$A{r},'Current Inventory'!$D{r}:$D{r},$B{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "H",
+          "header": "Live BO",
+          "cells": 2213,
+          "first_row": 2,
+          "last_row": 2214,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS('Open Order Report'!$M{r}:$M{r},'Open Order Report'!$A{r}:$A{r},$A{r},'Open Order Report'!$C{r}:$C{r},$AA{r},'Open Order Report'!$B{r}:$B{r},\">=\"&DATE(2020,1,1))+IF($AB{r}=\"\",0,SUMIFS('Open Order Report'!$M{r}:$M{r},'Open Order Report'!$A{r}:$A{r},$A{r},'Open Order Report'!$C{r}:$C{r},$AB{r},'Open Order Report'!$B{r}:$B{r},\">=\"&DATE(2020,1,1)))",
+          "other_patterns": []
+        },
+        {
+          "column": "I",
+          "header": "Net Available",
+          "cells": 2213,
+          "first_row": 2,
+          "last_row": 2214,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "G{r}-H{r}",
+          "other_patterns": []
+        },
+        {
+          "column": "J",
+          "header": "Inbound PO Qty",
+          "cells": 2213,
+          "first_row": 2,
+          "last_row": 2214,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS('Items on PO'!$N{r}:$N{r},'Items on PO'!$K{r}:$K{r},$A{r},'Items on PO'!$B{r}:$B{r},\">40\",'Items on PO'!$F{r}:$F{r},\"<>TO*\",'Items on PO'!$G{r}:$G{r},\"<>*Clawson*\",'Items on PO'!$G{r}:$G{r},\"<>*Predator Group*\")",
+          "other_patterns": []
+        },
+        {
+          "column": "K",
+          "header": "Inbound PO Value",
+          "cells": 2213,
+          "first_row": 2,
+          "last_row": 2214,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS('Items on PO'!$P{r}:$P{r},'Items on PO'!$K{r}:$K{r},$A{r},'Items on PO'!$B{r}:$B{r},\">40\",'Items on PO'!$F{r}:$F{r},\"<>TO*\",'Items on PO'!$G{r}:$G{r},\"<>*Clawson*\",'Items on PO'!$G{r}:$G{r},\"<>*Predator Group*\")",
+          "other_patterns": []
+        },
+        {
+          "column": "L",
+          "header": "Next PO Due",
+          "cells": 2213,
+          "first_row": 2,
+          "last_row": 2214,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "_xlfn.MINIFS('Items on PO'!$B{r}:$B{r},'Items on PO'!$K{r}:$K{r},$A{r},'Items on PO'!$B{r}:$B{r},\">\"&'PE Config'!$B{r},'Items on PO'!$F{r}:$F{r},\"<>TO*\",'Items on PO'!$G{r}:$G{r},\"<>*Clawson*\",'Items on PO'!$G{r}:$G{r},\"<>*Predator Group*\")",
+          "other_patterns": []
+        },
+        {
+          "column": "M",
+          "header": "Fwd 3Mo Fcst",
+          "cells": 2213,
+          "first_row": 2,
+          "last_row": 2214,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS('Forecast Qty'!$B{r}:$B{r},'Forecast Qty'!$A{r}:$A{r},$A{r},'Forecast Qty'!$D{r}:$D{r},\">=\"&'PE Config'!$B{r},'Forecast Qty'!$D{r}:$D{r},\"<=\"&'PE Config'!$B{r},'Forecast Qty'!$C{r}:$C{r},$AA{r})+IF($AB{r}=\"\",0,SUMIFS('Forecast Qty'!$B{r}:$B{r},'Forecast Qty'!$A{r}:$A{r},$A{r},'Forecast Qty'!$D{r}:$D{r},\">=\"&'PE Config'!$B{r},'Forecast Qty'!$D{r}:$D{r},\"<=\"&'PE Config'!$B{r},'Forecast Qty'!$C{r}:$C{r},$AB{r}))",
+          "other_patterns": []
+        },
+        {
+          "column": "N",
+          "header": "Fwd 12Mo Fcst",
+          "cells": 2213,
+          "first_row": 2,
+          "last_row": 2214,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS('Forecast Qty'!$B{r}:$B{r},'Forecast Qty'!$A{r}:$A{r},$A{r},'Forecast Qty'!$D{r}:$D{r},\">=\"&'PE Config'!$B{r},'Forecast Qty'!$D{r}:$D{r},\"<=\"&'PE Config'!$B{r},'Forecast Qty'!$C{r}:$C{r},$AA{r})+IF($AB{r}=\"\",0,SUMIFS('Forecast Qty'!$B{r}:$B{r},'Forecast Qty'!$A{r}:$A{r},$A{r},'Forecast Qty'!$D{r}:$D{r},\">=\"&'PE Config'!$B{r},'Forecast Qty'!$D{r}:$D{r},\"<=\"&'PE Config'!$B{r},'Forecast Qty'!$C{r}:$C{r},$AB{r}))",
+          "other_patterns": []
+        },
+        {
+          "column": "O",
+          "header": "Zero Fcst Mo",
+          "cells": 2213,
+          "first_row": 2,
+          "last_row": 2214,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "MAX(0,12-COUNTIFS('Forecast Qty'!$A{r}:$A{r},$A{r},'Forecast Qty'!$C{r}:$C{r},$AA{r},'Forecast Qty'!$D{r}:$D{r},\">=\"&'PE Config'!$B{r},'Forecast Qty'!$D{r}:$D{r},\"<=\"&'PE Config'!$B{r},'Forecast Qty'!$B{r}:$B{r},\">0\"))",
+          "other_patterns": []
+        },
+        {
+          "column": "P",
+          "header": "Monthly Run Rate",
+          "cells": 2213,
+          "first_row": 2,
+          "last_row": 2214,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 2213,
+          "dominant_pattern": "(SUMIFS(#REF!,#REF!,$A{r},#REF!,$AA{r},#REF!,\">=\"&EDATE('PE Config'!$B{r},-'PE Config'!$B{r}))+IF($AB{r}=\"\",0,SUMIFS(#REF!,#REF!,$A{r},#REF!,$AB{r},#REF!,\">=\"&EDATE('PE Config'!$B{r},-'PE Config'!$B{r}))))/'PE Config'!$B{r}",
+          "other_patterns": []
+        },
+        {
+          "column": "Q",
+          "header": "Avg Lead Time (d)",
+          "cells": 2213,
+          "first_row": 2,
+          "last_row": 2214,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "'PE Config'!$B{r}",
+          "other_patterns": []
+        },
+        {
+          "column": "R",
+          "header": "Lead Time (mo)",
+          "cells": 2213,
+          "first_row": 2,
+          "last_row": 2214,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "Q{r}/30",
+          "other_patterns": []
+        },
+        {
+          "column": "S",
+          "header": "Months of Supply",
+          "cells": 2213,
+          "first_row": 2,
+          "last_row": 2214,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF(N{r}>0,G{r}/(N{r}/12),IF(P{r}>0,G{r}/P{r},IF(G{r}>0,999,0)))",
+          "other_patterns": []
+        },
+        {
+          "column": "T",
+          "header": "Coverage vs LT",
+          "cells": 2213,
+          "first_row": 2,
+          "last_row": 2214,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "S{r}-R{r}",
+          "other_patterns": []
+        },
+        {
+          "column": "U",
+          "header": "AllocMix B2C%",
+          "cells": 2213,
+          "first_row": 2,
+          "last_row": 2214,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IFERROR(VLOOKUP($A{r},__AllocMix!$A{r}:$E{r},2,FALSE),\"\")",
+          "other_patterns": []
+        },
+        {
+          "column": "V",
+          "header": "AllocMix Amer%",
+          "cells": 2213,
+          "first_row": 2,
+          "last_row": 2214,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IFERROR(VLOOKUP($A{r},__AllocMix!$A{r}:$E{r},3,FALSE),\"\")",
+          "other_patterns": []
+        },
+        {
+          "column": "W",
+          "header": "AllocMix EMEA%",
+          "cells": 2213,
+          "first_row": 2,
+          "last_row": 2214,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IFERROR(VLOOKUP($A{r},__AllocMix!$A{r}:$E{r},4,FALSE),\"\")",
+          "other_patterns": []
+        },
+        {
+          "column": "X",
+          "header": "AllocMix AP%",
+          "cells": 2213,
+          "first_row": 2,
+          "last_row": 2214,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IFERROR(VLOOKUP($A{r},__AllocMix!$A{r}:$E{r},5,FALSE),\"\")",
+          "other_patterns": []
+        },
+        {
+          "column": "Y",
+          "header": "Position Status",
+          "cells": 2213,
+          "first_row": 2,
+          "last_row": 2214,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF(AND($N{r}=0,$P{r}=0),\"NO DEMAND\",IF(AND($N{r}=0,$P{r}>0),\"NO FORECAST\",IF($S{r}>Thr_Excess,\"EXCESS\",IF($T{r}<Thr_Critical,\"CRITICAL\",IF($T{r}<Thr_AtRisk,\"AT RISK\",IF($T{r}<Thr_Watch,\"WATCH\",\"HEALTHY\"))))))",
+          "other_patterns": []
+        },
+        {
+          "column": "AA",
+          "header": "",
+          "cells": 2213,
+          "first_row": 2,
+          "last_row": 2214,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IFERROR(VLOOKUP($B{r},'PE Config'!$A{r}:$D{r},3,FALSE),\"\")",
+          "other_patterns": []
+        },
+        {
+          "column": "AB",
+          "header": "",
+          "cells": 2213,
+          "first_row": 2,
+          "last_row": 2214,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IFERROR(VLOOKUP($B{r},'PE Config'!$A{r}:$D{r},4,FALSE),\"\")",
+          "other_patterns": []
+        },
+        {
+          "column": "AC",
+          "header": "BO$",
+          "cells": 2213,
+          "first_row": 2,
+          "last_row": 2214,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "H{r}*IF(ISNUMBER(F{r}),F{r},0)",
+          "other_patterns": []
+        },
+        {
+          "column": "AD",
+          "header": "Key",
+          "cells": 2213,
+          "first_row": 2,
+          "last_row": 2214,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "A{r}&\"|\"&B{r}",
+          "other_patterns": []
+        },
+        {
+          "column": "AE",
+          "header": "BO$ RankKey",
+          "cells": 2213,
+          "first_row": 2,
+          "last_row": 2214,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF(AC{r}>0,AC{r}+ROW()/1000000000,\"\")",
+          "other_patterns": []
+        }
+      ]
+    },
+    {
+      "workbook": "Supply_Chain_Update_Meeting_Workbook.xlsm",
+      "sheet": "Allocation Plan",
+      "state": "veryHidden",
+      "formula_count": 47534,
+      "referenced_sheets": [
+        "__Alloc Engine"
+      ],
+      "lookup_usage": {},
+      "volatile_usage": {},
+      "whole_column_references": 0,
+      "broken_reference_cells": 0,
+      "error": null,
+      "columns": [
+        {
+          "column": "A",
+          "header": "Allocation Plan \u2014 Margin-Max by Delivery (Full Pool)",
+          "cells": 4752,
+          "first_row": 18,
+          "last_row": 4769,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "'__Alloc Engine'!A{r}",
+          "other_patterns": []
+        },
+        {
+          "column": "B",
+          "header": "",
+          "cells": 4762,
+          "first_row": 4,
+          "last_row": 4769,
+          "distinct_patterns": 11,
+          "consistency": 0.9979,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "'__Alloc Engine'!B{r}",
+          "other_patterns": [
+            {
+              "pattern": "SUM('__Alloc Engine'!$W{r}:$W{r})",
+              "cells": 1
+            },
+            {
+              "pattern": "SUM('__Alloc Engine'!$Y{r}:$Y{r})",
+              "cells": 1
+            },
+            {
+              "pattern": "B{r}-B{r}",
+              "cells": 1
+            },
+            {
+              "pattern": "SUM('__Alloc Engine'!$S{r}:$S{r})",
+              "cells": 1
+            },
+            {
+              "pattern": "SUM('__Alloc Engine'!$Z{r}:$Z{r})",
+              "cells": 1
+            }
+          ]
+        },
+        {
+          "column": "C",
+          "header": "",
+          "cells": 4752,
+          "first_row": 18,
+          "last_row": 4769,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "'__Alloc Engine'!C{r}",
+          "other_patterns": []
+        },
+        {
+          "column": "D",
+          "header": "",
+          "cells": 4752,
+          "first_row": 18,
+          "last_row": 4769,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "'__Alloc Engine'!D{r}",
+          "other_patterns": []
+        },
+        {
+          "column": "E",
+          "header": "",
+          "cells": 4753,
+          "first_row": 18,
+          "last_row": 4770,
+          "distinct_patterns": 2,
+          "consistency": 0.9998,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "'__Alloc Engine'!P{r}",
+          "other_patterns": [
+            {
+              "pattern": "SUM(E{r}:E{r})",
+              "cells": 1
+            }
+          ]
+        },
+        {
+          "column": "F",
+          "header": "",
+          "cells": 4753,
+          "first_row": 18,
+          "last_row": 4770,
+          "distinct_patterns": 2,
+          "consistency": 0.9998,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "'__Alloc Engine'!S{r}",
+          "other_patterns": [
+            {
+              "pattern": "SUM(F{r}:F{r})",
+              "cells": 1
+            }
+          ]
+        },
+        {
+          "column": "G",
+          "header": "",
+          "cells": 4752,
+          "first_row": 18,
+          "last_row": 4769,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "'__Alloc Engine'!U{r}",
+          "other_patterns": []
+        },
+        {
+          "column": "H",
+          "header": "",
+          "cells": 4752,
+          "first_row": 18,
+          "last_row": 4769,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "'__Alloc Engine'!V{r}",
+          "other_patterns": []
+        },
+        {
+          "column": "I",
+          "header": "",
+          "cells": 4753,
+          "first_row": 18,
+          "last_row": 4770,
+          "distinct_patterns": 2,
+          "consistency": 0.9998,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "'__Alloc Engine'!W{r}",
+          "other_patterns": [
+            {
+              "pattern": "SUM(I{r}:I{r})",
+              "cells": 1
+            }
+          ]
+        },
+        {
+          "column": "J",
+          "header": "",
+          "cells": 4753,
+          "first_row": 18,
+          "last_row": 4770,
+          "distinct_patterns": 2,
+          "consistency": 0.9998,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "'__Alloc Engine'!Z{r}",
+          "other_patterns": [
+            {
+              "pattern": "SUM(J{r}:J{r})",
+              "cells": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workbook": "Supply_Chain_Update_Meeting_Workbook.xlsm",
+      "sheet": "__CleanBO",
+      "state": "hidden",
+      "formula_count": 37451,
+      "referenced_sheets": [
+        "Alloc_Hold_List",
+        "Open Order Report",
+        "REF",
+        "SO_Closure_List",
+        "Sales_Hygiene_Flags"
+      ],
+      "lookup_usage": {},
+      "volatile_usage": {},
+      "whole_column_references": 0,
+      "broken_reference_cells": 11636,
+      "error": null,
+      "columns": [
+        {
+          "column": "A",
+          "header": "Item",
+          "cells": 9362,
+          "first_row": 2,
+          "last_row": 9363,
+          "distinct_patterns": 2,
+          "consistency": 0.6893,
+          "suspicious": true,
+          "broken_reference_cells": 2909,
+          "dominant_pattern": "'Open Order Report'!A{r}",
+          "other_patterns": [
+            {
+              "pattern": "'Open Order Report'!#REF!",
+              "cells": 2909
+            }
+          ]
+        },
+        {
+          "column": "B",
+          "header": "Channel (Regional ID)",
+          "cells": 9362,
+          "first_row": 2,
+          "last_row": 9363,
+          "distinct_patterns": 2,
+          "consistency": 0.6893,
+          "suspicious": true,
+          "broken_reference_cells": 2909,
+          "dominant_pattern": "'Open Order Report'!C{r}",
+          "other_patterns": [
+            {
+              "pattern": "'Open Order Report'!#REF!",
+              "cells": 2909
+            }
+          ]
+        },
+        {
+          "column": "C",
+          "header": "Live BO Qty",
+          "cells": 9362,
+          "first_row": 2,
+          "last_row": 9363,
+          "distinct_patterns": 2,
+          "consistency": 0.6893,
+          "suspicious": true,
+          "broken_reference_cells": 2909,
+          "dominant_pattern": "IF(AND('Open Order Report'!$A{r}<>\"\",N('Open Order Report'!$M{r})>0,ISERROR(SEARCH(\"Clawson\",'Open Order Report'!$D{r})),ISERROR(SEARCH(\"Carrinho\",'Open Order Report'!$D{r})),ISERROR(SEARCH(\"Beckmann\",'Open Order Report'!$D{r})),ISERROR(SEARCH(\"Predator Group\",'Open Order Report'!$D{r})),IF('Open Order Report'!$B{r}=\"\",TRUE,'Open Order Report'!$B{r}>=DATE(2020,1,1)),COUNTIFS(SO_Closure_List!$A{r}:$A{r},$A{r},SO_Closure_List!$C{r}:$C{r},'Open Order Report'!$L{r},SO_Closure_List!$F{r}:$F{r},IF('Open Order Report'!$B{r}=\"\",\"=\",'Open Order Report'!$B{r}))=0,COUNTIFS(Alloc_Hold_List!$A{r}:$A{r},$A{r},Alloc_Hold_List!$C{r}:$C{r},'Open Order Report'!$L{r},Alloc_Hold_List!$K{r}:$K{r},IF('Open Order Report'!$B{r}=\"\",\"=\",'Open Order Report'!$B{r}))=0,COUNTIFS(Sales_Hygiene_Flags!$B{r}:$B{r},$A{r},Sales_Hygiene_Flags!$D{r}:$D{r},'Open Order Report'!$L{r},Sales_Hygiene_Flags!$G{r}:$G{r},IF('Open Order Report'!$B{r}=\"\",\"=\",'Open Order Report'!$B{r}))=0),'Open Order Report'!$M{r},0)",
+          "other_patterns": [
+            {
+              "pattern": "IF(AND('Open Order Report'!#REF!<>\"\",N('Open Order Report'!#REF!)>0,ISERROR(SEARCH(\"Clawson\",'Open Order Report'!#REF!)),ISERROR(SEARCH(\"Carrinho\",'Open Order Report'!#REF!)),ISERROR(SEARCH(\"Beckmann\",'Open Order Report'!#REF!)),ISERROR(SEARCH(\"Predator Group\",'Open Order Report'!#REF!)),IF('Open Order Report'!#REF!=\"\",TRUE,'Open Order Report'!#REF!>=DATE(2020,1,1)),COUNTIFS(SO_Closure_List!$A{r}:$A{r},$A{r},SO_Closure_List!$C{r}:$C{r},'Open Order Report'!#REF!,SO_Closure_List!$F{r}:$F{r},IF('Open Order Report'!#REF!=\"\",\"=\",'Open Order Report'!#REF!))=0,COUNTIFS(Alloc_Hold_List!$A{r}:$A{r},$A{r},Alloc_Hold_List!$C{r}:$C{r},'Open Order Report'!#REF!,Alloc_Hold_List!$K{r}:$K{r},IF('Open Order Report'!#REF!=\"\",\"=\",'Open Order Report'!#REF!))=0,COUNTIFS(Sales_Hygiene_Flags!$B{r}:$B{r},$A{r},Sales_Hygiene_Flags!$D{r}:$D{r},'Open Order Report'!#REF!,Sales_Hygiene_Flags!$G{r}:$G{r},IF('Open Order Report'!#REF!=\"\",\"=\",'Open Order Report'!#REF!))=0),'Open Order Report'!#REF!,0)",
+              "cells": 2909
+            }
+          ]
+        },
+        {
+          "column": "D",
+          "header": "Live BO $",
+          "cells": 9362,
+          "first_row": 2,
+          "last_row": 9363,
+          "distinct_patterns": 2,
+          "consistency": 0.6893,
+          "suspicious": true,
+          "broken_reference_cells": 2909,
+          "dominant_pattern": "C{r}*N('Open Order Report'!$K{r})",
+          "other_patterns": [
+            {
+              "pattern": "C{r}*N('Open Order Report'!#REF!)",
+              "cells": 2909
+            }
+          ]
+        },
+        {
+          "column": "G",
+          "header": "",
+          "cells": 3,
+          "first_row": 2,
+          "last_row": 4,
+          "distinct_patterns": 3,
+          "consistency": 0.3333,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "COUNTIF($C{r}:$C{r},\">0\")",
+          "other_patterns": [
+            {
+              "pattern": "SUM($C{r}:$C{r})",
+              "cells": 1
+            },
+            {
+              "pattern": "SUM($D{r}:$D{r})",
+              "cells": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workbook": "Supply_Chain_Update_Meeting_Workbook.xlsm",
+      "sheet": "BOMMaster",
+      "state": "hidden",
+      "formula_count": 35367,
+      "referenced_sheets": [],
+      "lookup_usage": {},
+      "volatile_usage": {},
+      "whole_column_references": 0,
+      "broken_reference_cells": 0,
+      "error": null,
+      "columns": [
+        {
+          "column": "K",
+          "header": "Parent SKU",
+          "cells": 11789,
+          "first_row": 2,
+          "last_row": 11790,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IFERROR(_xlfn.TEXTAFTER($B{r},\" : \",-1),$B{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "L",
+          "header": "Member SKU",
+          "cells": 11789,
+          "first_row": 2,
+          "last_row": 11790,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IFERROR(_xlfn.TEXTAFTER($E{r},\" : \",-1),$E{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "M",
+          "header": "Is ARC Table",
+          "cells": 11789,
+          "first_row": 2,
+          "last_row": 11790,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF(AND(LEFT($K{r},3)=\"TP \",ISNUMBER(SEARCH(\"ARC\",$K{r}))),1,0)",
+          "other_patterns": []
+        }
+      ]
+    },
+    {
+      "workbook": "Supply_Chain_Update_Meeting_Workbook.xlsm",
+      "sheet": "__Alloc Engine",
+      "state": "veryHidden",
+      "formula_count": 24528,
+      "referenced_sheets": [],
+      "lookup_usage": {},
+      "volatile_usage": {},
+      "whole_column_references": 0,
+      "broken_reference_cells": 0,
+      "error": null,
+      "columns": [
+        {
+          "column": "AA",
+          "header": "Base Alloc (pre-sweep)",
+          "cells": 4752,
+          "first_row": 2,
+          "last_row": 4753,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "FLOOR(MIN(Q{r},MAX(0,L{r}-R{r})),1)",
+          "other_patterns": []
+        },
+        {
+          "column": "AB",
+          "header": "Unmet_c",
+          "cells": 4752,
+          "first_row": 2,
+          "last_row": 4753,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "MAX(0,P{r}-AA{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "AC",
+          "header": "PriorUnmet",
+          "cells": 5136,
+          "first_row": 2,
+          "last_row": 5137,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS($AB{r}:$AB{r},$A{r}:$A{r},$A{r},$C{r}:$C{r},\"<\"&$C{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "AD",
+          "header": "SKU Leftover",
+          "cells": 5136,
+          "first_row": 2,
+          "last_row": 5137,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "MAX(0,L{r}-SUMIFS($AA{r}:$AA{r},$A{r}:$A{r},$A{r}))",
+          "other_patterns": []
+        },
+        {
+          "column": "AE",
+          "header": "Sweep_c",
+          "cells": 4752,
+          "first_row": 2,
+          "last_row": 4753,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "MIN(AB{r},MAX(0,AD{r}-AC{r}))",
+          "other_patterns": []
+        }
+      ]
+    },
+    {
+      "workbook": "Supply_Chain_Update_Meeting_Workbook.xlsm",
+      "sheet": "__AllocMix",
+      "state": "veryHidden",
+      "formula_count": 21386,
+      "referenced_sheets": [
+        "Forecast Qty",
+        "PE Config",
+        "Position Engine",
+        "__CleanBO"
+      ],
+      "lookup_usage": {},
+      "volatile_usage": {},
+      "whole_column_references": 0,
+      "broken_reference_cells": 0,
+      "error": null,
+      "columns": [
+        {
+          "column": "A",
+          "header": "Allocation Mix (%) by SKU \u2014 Derived Demand Share",
+          "cells": 1,
+          "first_row": 4,
+          "last_row": 4,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "_xlfn.UNIQUE('Position Engine'!$A{r}:$A{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "B",
+          "header": "As of",
+          "cells": 1188,
+          "first_row": 4,
+          "last_row": 1191,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF($R{r}=0,0,N{r}/$R{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "C",
+          "header": "",
+          "cells": 1189,
+          "first_row": 1,
+          "last_row": 1191,
+          "distinct_patterns": 2,
+          "consistency": 0.9992,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF($R{r}=0,0,O{r}/$R{r})",
+          "other_patterns": [
+            {
+              "pattern": "'PE Config'!$B{r}",
+              "cells": 1
+            }
+          ]
+        },
+        {
+          "column": "D",
+          "header": "",
+          "cells": 1188,
+          "first_row": 4,
+          "last_row": 1191,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF($R{r}=0,0,P{r}/$R{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "E",
+          "header": "",
+          "cells": 1188,
+          "first_row": 4,
+          "last_row": 1191,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF($R{r}=0,0,Q{r}/$R{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "F",
+          "header": "",
+          "cells": 1188,
+          "first_row": 4,
+          "last_row": 1191,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS(__CleanBO!$C{r}:$C{r},__CleanBO!$A{r}:$A{r},$A{r},__CleanBO!$B{r}:$B{r},N{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "G",
+          "header": "",
+          "cells": 1188,
+          "first_row": 4,
+          "last_row": 1191,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS(__CleanBO!$C{r}:$C{r},__CleanBO!$A{r}:$A{r},$A{r},__CleanBO!$B{r}:$B{r},O{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "H",
+          "header": "",
+          "cells": 1188,
+          "first_row": 4,
+          "last_row": 1191,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS(__CleanBO!$C{r}:$C{r},__CleanBO!$A{r}:$A{r},$A{r},__CleanBO!$B{r}:$B{r},P{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "I",
+          "header": "",
+          "cells": 1188,
+          "first_row": 4,
+          "last_row": 1191,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS(__CleanBO!$C{r}:$C{r},__CleanBO!$A{r}:$A{r},$A{r},__CleanBO!$B{r}:$B{r},Q{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "J",
+          "header": "",
+          "cells": 1188,
+          "first_row": 4,
+          "last_row": 1191,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS('Forecast Qty'!$B{r}:$B{r},'Forecast Qty'!$A{r}:$A{r},$A{r},'Forecast Qty'!$C{r}:$C{r},N{r},'Forecast Qty'!$D{r}:$D{r},\">=\"&'PE Config'!$B{r},'Forecast Qty'!$D{r}:$D{r},\"<=\"&'PE Config'!$B{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "K",
+          "header": "",
+          "cells": 1188,
+          "first_row": 4,
+          "last_row": 1191,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS('Forecast Qty'!$B{r}:$B{r},'Forecast Qty'!$A{r}:$A{r},$A{r},'Forecast Qty'!$C{r}:$C{r},O{r},'Forecast Qty'!$D{r}:$D{r},\">=\"&'PE Config'!$B{r},'Forecast Qty'!$D{r}:$D{r},\"<=\"&'PE Config'!$B{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "L",
+          "header": "",
+          "cells": 1188,
+          "first_row": 4,
+          "last_row": 1191,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS('Forecast Qty'!$B{r}:$B{r},'Forecast Qty'!$A{r}:$A{r},$A{r},'Forecast Qty'!$C{r}:$C{r},P{r},'Forecast Qty'!$D{r}:$D{r},\">=\"&'PE Config'!$B{r},'Forecast Qty'!$D{r}:$D{r},\"<=\"&'PE Config'!$B{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "M",
+          "header": "",
+          "cells": 1188,
+          "first_row": 4,
+          "last_row": 1191,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS('Forecast Qty'!$B{r}:$B{r},'Forecast Qty'!$A{r}:$A{r},$A{r},'Forecast Qty'!$C{r}:$C{r},Q{r},'Forecast Qty'!$D{r}:$D{r},\">=\"&'PE Config'!$B{r},'Forecast Qty'!$D{r}:$D{r},\"<=\"&'PE Config'!$B{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "N",
+          "header": "",
+          "cells": 1188,
+          "first_row": 4,
+          "last_row": 1191,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "F{r}+J{r}",
+          "other_patterns": []
+        },
+        {
+          "column": "O",
+          "header": "",
+          "cells": 1188,
+          "first_row": 4,
+          "last_row": 1191,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "G{r}+K{r}",
+          "other_patterns": []
+        },
+        {
+          "column": "P",
+          "header": "",
+          "cells": 1188,
+          "first_row": 4,
+          "last_row": 1191,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "H{r}+L{r}",
+          "other_patterns": []
+        },
+        {
+          "column": "Q",
+          "header": "",
+          "cells": 1188,
+          "first_row": 4,
+          "last_row": 1191,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "I{r}+M{r}",
+          "other_patterns": []
+        },
+        {
+          "column": "R",
+          "header": "",
+          "cells": 1188,
+          "first_row": 4,
+          "last_row": 1191,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUM(N{r}:Q{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "S",
+          "header": "",
+          "cells": 1188,
+          "first_row": 4,
+          "last_row": 1191,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF($R{r}=0,\"\",SUM(B{r}:E{r}))",
+          "other_patterns": []
+        }
+      ]
+    },
+    {
+      "workbook": "Supply_Chain_Update_Meeting_Workbook.xlsm",
+      "sheet": "Inventory Review",
+      "state": "visible",
+      "formula_count": 15984,
+      "referenced_sheets": [
+        "Inventory Health Review"
+      ],
+      "lookup_usage": {
+        "XLOOKUP": 2642
+      },
+      "volatile_usage": {},
+      "whole_column_references": 0,
+      "broken_reference_cells": 0,
+      "error": null,
+      "columns": [
+        {
+          "column": "C",
+          "header": "",
+          "cells": 1,
+          "first_row": 1,
+          "last_row": 1,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUBTOTAL(109,C{r}:C{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "D",
+          "header": "",
+          "cells": 1,
+          "first_row": 1,
+          "last_row": 1,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUBTOTAL(109,D{r}:D{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "E",
+          "header": "",
+          "cells": 1,
+          "first_row": 1,
+          "last_row": 1,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUBTOTAL(109,E{r}:E{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "F",
+          "header": "",
+          "cells": 1,
+          "first_row": 1,
+          "last_row": 1,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUBTOTAL(109,F{r}:F{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "G",
+          "header": "",
+          "cells": 1,
+          "first_row": 1,
+          "last_row": 1,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUBTOTAL(101,G{r}:G{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "H",
+          "header": "",
+          "cells": 1,
+          "first_row": 1,
+          "last_row": 1,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUBTOTAL(109,H{r}:H{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "I",
+          "header": "",
+          "cells": 1,
+          "first_row": 1,
+          "last_row": 1,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUBTOTAL(109,I{r}:I{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "J",
+          "header": "",
+          "cells": 2642,
+          "first_row": 3,
+          "last_row": 2669,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "_xlfn.XLOOKUP(B{r},'Inventory Health Review'!$P{r}:$P{r},'Inventory Health Review'!$Q{r}:$Q{r},\"Other\")",
+          "other_patterns": []
+        },
+        {
+          "column": "K",
+          "header": "",
+          "cells": 2667,
+          "first_row": 3,
+          "last_row": 2669,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "_xlfn.LET(_xlpm.tot,SUMIFS(Current_Inventory[InvQty],Current_Inventory[SKU],$A{r}),_xlpm.bb,SUMIFS(Current_Inventory[InvQty],Current_Inventory[SKU],$A{r},Current_Inventory[InvLoc],\"Billard Beckmann\")+SUMIFS(Current_Inventory[InvQty],Current_Inventory[SKU],$A{r},Current_Inventory[InvLoc],\"Showroom - BB\"),IF(_xlpm.tot=0,1,MEDIAN(0,(_xlpm.tot-_xlpm.bb)/_xlpm.tot,1)))",
+          "other_patterns": []
+        },
+        {
+          "column": "L",
+          "header": "",
+          "cells": 2667,
+          "first_row": 3,
+          "last_row": 2669,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "ROUND($E{r}*$K{r},0)",
+          "other_patterns": []
+        },
+        {
+          "column": "M",
+          "header": "",
+          "cells": 2667,
+          "first_row": 3,
+          "last_row": 2669,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "$H{r}*$K{r}",
+          "other_patterns": []
+        },
+        {
+          "column": "N",
+          "header": "",
+          "cells": 2667,
+          "first_row": 3,
+          "last_row": 2669,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "$G{r}*$K{r}",
+          "other_patterns": []
+        },
+        {
+          "column": "O",
+          "header": "",
+          "cells": 2667,
+          "first_row": 3,
+          "last_row": 2669,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF(AND(LEFT(A{r},1)<>\"P\",LEFT(A{r},8)<>\"A PRE JP\",K{r}>0),1,0)",
+          "other_patterns": []
+        }
+      ]
+    },
+    {
+      "workbook": "Supply_Chain_Update_Meeting_Workbook.xlsm",
+      "sheet": "JAX Container Validation",
+      "state": "visible",
+      "formula_count": 7112,
+      "referenced_sheets": [
+        "Container Shipment",
+        "Position Engine"
+      ],
+      "lookup_usage": {
+        "INDEX": 762,
+        "MATCH": 762
+      },
+      "volatile_usage": {},
+      "whole_column_references": 0,
+      "broken_reference_cells": 0,
+      "error": null,
+      "columns": [
+        {
+          "column": "D",
+          "header": "BO Qty - Americas",
+          "cells": 254,
+          "first_row": 2,
+          "last_row": 255,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS(Customer_Open_Orders[TtlBO],Customer_Open_Orders[Item],$A{r},Customer_Open_Orders[Regional ID],\"Americas\")",
+          "other_patterns": []
+        },
+        {
+          "column": "E",
+          "header": "BO Qty - All Regions",
+          "cells": 254,
+          "first_row": 2,
+          "last_row": 255,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUM(SUMIFS(Customer_Open_Orders[TtlBO],Customer_Open_Orders[Item],$A{r}))",
+          "other_patterns": []
+        },
+        {
+          "column": "F",
+          "header": "JAX Inv",
+          "cells": 254,
+          "first_row": 2,
+          "last_row": 255,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IFERROR(SUMIFS(tblInventoryReview[JAX Inv],tblInventoryReview[SKU],$A{r}),0)",
+          "other_patterns": []
+        },
+        {
+          "column": "G",
+          "header": "Americas On-Hand",
+          "cells": 254,
+          "first_row": 2,
+          "last_row": 255,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS(Current_Inventory[InvQty],Current_Inventory[SKU],$A{r},Current_Inventory[Regional ID],\"Americas\")",
+          "other_patterns": []
+        },
+        {
+          "column": "H",
+          "header": "Qty on PO",
+          "cells": 254,
+          "first_row": 2,
+          "last_row": 255,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IFERROR(SUMIFS(tblInventoryReview[Qty on PO],tblInventoryReview[SKU],$A{r}),0)",
+          "other_patterns": []
+        },
+        {
+          "column": "I",
+          "header": "Fcst Aug-26 (Amer)",
+          "cells": 254,
+          "first_row": 2,
+          "last_row": 255,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS(Forecast_Qty[Forecast Qty],Forecast_Qty[Item],$A{r},Forecast_Qty[Regional ID],\"Americas\",Forecast_Qty[YearMonth],202608)",
+          "other_patterns": []
+        },
+        {
+          "column": "J",
+          "header": "Fcst Sep-26 (Amer)",
+          "cells": 254,
+          "first_row": 2,
+          "last_row": 255,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS(Forecast_Qty[Forecast Qty],Forecast_Qty[Item],$A{r},Forecast_Qty[Regional ID],\"Americas\",Forecast_Qty[YearMonth],202609)",
+          "other_patterns": []
+        },
+        {
+          "column": "K",
+          "header": "Fcst Oct-26 (Amer)",
+          "cells": 254,
+          "first_row": 2,
+          "last_row": 255,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS(Forecast_Qty[Forecast Qty],Forecast_Qty[Item],$A{r},Forecast_Qty[Regional ID],\"Americas\",Forecast_Qty[YearMonth],202610)",
+          "other_patterns": []
+        },
+        {
+          "column": "L",
+          "header": "Fcst 3-Mo Total",
+          "cells": 254,
+          "first_row": 2,
+          "last_row": 255,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUM(I{r}:K{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "M",
+          "header": "Forecast 12m",
+          "cells": 254,
+          "first_row": 2,
+          "last_row": 255,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IFERROR(SUMIFS(tblInventoryReview[Forecast 12m],tblInventoryReview[SKU],$A{r}),0)",
+          "other_patterns": []
+        },
+        {
+          "column": "N",
+          "header": "Inv Months",
+          "cells": 254,
+          "first_row": 2,
+          "last_row": 255,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IFERROR(SUMIFS(tblInventoryReview[Inv_Months],tblInventoryReview[SKU],$A{r}),\"\")",
+          "other_patterns": []
+        },
+        {
+          "column": "O",
+          "header": "In-Transit: Sunray 6/24 (ETA 7/27)",
+          "cells": 254,
+          "first_row": 2,
+          "last_row": 255,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS('Container Shipment'!$B{r}:$B{r},'Container Shipment'!$A{r}:$A{r},$A{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "P",
+          "header": "In-Transit: YueQin 6/24 (ETA 7/27)",
+          "cells": 254,
+          "first_row": 2,
+          "last_row": 255,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS('Container Shipment'!$B{r}:$B{r},'Container Shipment'!$A{r}:$A{r},$A{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "Q",
+          "header": "Container ID / Group",
+          "cells": 254,
+          "first_row": 2,
+          "last_row": 255,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF(O{r}>0,\"Sunray \u2014 Predator Container (shipped 6/24)\",IF(P{r}>0,\"YueQin \u2014 Predator Container (shipped 6/24)\",\"\"))",
+          "other_patterns": []
+        },
+        {
+          "column": "R",
+          "header": "ETA",
+          "cells": 254,
+          "first_row": 2,
+          "last_row": 255,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF(O{r}+P{r}>0,DATE(2026,7,27),\"\")",
+          "other_patterns": []
+        },
+        {
+          "column": "S",
+          "header": "Total In-Transit (Container Shipment tab)",
+          "cells": 254,
+          "first_row": 2,
+          "last_row": 255,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "O{r}+P{r}",
+          "other_patterns": []
+        },
+        {
+          "column": "T",
+          "header": "Open PO Remaining, Exp. Receipt Aug-Oct 26",
+          "cells": 254,
+          "first_row": 2,
+          "last_row": 255,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS(Items_On_PO[Quantity Remaining],Items_On_PO[Item],$A{r},Items_On_PO[Expected Receipt Date],\">=\"&DATE(2026,8,1),Items_On_PO[Expected Receipt Date],\"<=\"&DATE(2026,10,31))",
+          "other_patterns": []
+        },
+        {
+          "column": "U",
+          "header": "Unit Cost (Purchase Price tab)",
+          "cells": 254,
+          "first_row": 2,
+          "last_row": 255,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IFERROR(INDEX(Purchase_Price[Average Cost],MATCH($A{r},Purchase_Price[SKU],0)),\"\")",
+          "other_patterns": []
+        },
+        {
+          "column": "V",
+          "header": "Avg Cost (Position Engine)",
+          "cells": 254,
+          "first_row": 2,
+          "last_row": 255,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IFERROR(INDEX('Position Engine'!$F{r}:$F{r},MATCH($A{r},'Position Engine'!$A{r}:$A{r},0)),\"\")",
+          "other_patterns": []
+        },
+        {
+          "column": "W",
+          "header": "Base Price / List (NP Allocation)",
+          "cells": 254,
+          "first_row": 2,
+          "last_row": 255,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IFERROR(INDEX(New_Product_Allocations[Base Price],MATCH(\"* : \"&$A{r},New_Product_Allocations[Name],0)),\"\")",
+          "other_patterns": []
+        },
+        {
+          "column": "X",
+          "header": "Realized Rate MIN (open SOs, Amer)",
+          "cells": 254,
+          "first_row": 2,
+          "last_row": 255,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IFERROR(_xlfn.MINIFS(Customer_Open_Orders[Item Rate],Customer_Open_Orders[Item],$A{r},Customer_Open_Orders[Regional ID],\"Americas\",Customer_Open_Orders[Item Rate],\">0\"),\"\")",
+          "other_patterns": []
+        },
+        {
+          "column": "Y",
+          "header": "Realized Rate MAX (open SOs, Amer)",
+          "cells": 254,
+          "first_row": 2,
+          "last_row": 255,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IFERROR(_xlfn.MAXIFS(Customer_Open_Orders[Item Rate],Customer_Open_Orders[Item],$A{r},Customer_Open_Orders[Regional ID],\"Americas\",Customer_Open_Orders[Item Rate],\">0\"),\"\")",
+          "other_patterns": []
+        },
+        {
+          "column": "Z",
+          "header": "# Open SO Lines w/ Rate",
+          "cells": 254,
+          "first_row": 2,
+          "last_row": 255,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "COUNTIFS(Customer_Open_Orders[Item],$A{r},Customer_Open_Orders[Regional ID],\"Americas\",Customer_Open_Orders[Item Rate],\">0\")",
+          "other_patterns": []
+        },
+        {
+          "column": "AA",
+          "header": "Price Data Flag",
+          "cells": 254,
+          "first_row": 2,
+          "last_row": 255,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF(AND(U{r}=\"\",V{r}=\"\",W{r}=\"\",AE{r}=\"\",AD{r}=0),\"NO PRICE OR COST DATA\",IF(AD{r}=0,\"No realized price - cost/list only\",IF(AND(U{r}=\"\",V{r}=\"\",AE{r}=\"\"),\"No cost data\",\"OK\")))",
+          "other_patterns": []
+        },
+        {
+          "column": "AB",
+          "header": "Realized Rate MIN (open SOs, all regions)",
+          "cells": 254,
+          "first_row": 2,
+          "last_row": 255,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IFERROR(_xlfn.MINIFS(Customer_Open_Orders[Item Rate],Customer_Open_Orders[Item],$A{r},Customer_Open_Orders[Item Rate],\">0\"),\"\")",
+          "other_patterns": []
+        },
+        {
+          "column": "AC",
+          "header": "Realized Rate MAX (open SOs, all regions)",
+          "cells": 254,
+          "first_row": 2,
+          "last_row": 255,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IFERROR(_xlfn.MAXIFS(Customer_Open_Orders[Item Rate],Customer_Open_Orders[Item],$A{r},Customer_Open_Orders[Item Rate],\">0\"),\"\")",
+          "other_patterns": []
+        },
+        {
+          "column": "AD",
+          "header": "# Open SO Lines w/ Rate (all regions)",
+          "cells": 254,
+          "first_row": 2,
+          "last_row": 255,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "COUNTIFS(Customer_Open_Orders[Item],$A{r},Customer_Open_Orders[Item Rate],\">0\")",
+          "other_patterns": []
+        },
+        {
+          "column": "AE",
+          "header": "Implied Unit Cost (Inv Cost / Total Inv)",
+          "cells": 254,
+          "first_row": 2,
+          "last_row": 255,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IFERROR(SUMIFS(tblInventoryReview[Inv Cost],tblInventoryReview[SKU],$A{r})/SUMIFS(tblInventoryReview[Total Inv],tblInventoryReview[SKU],$A{r}),\"\")",
+          "other_patterns": []
+        }
+      ]
+    },
+    {
+      "workbook": "Supply_Chain_Update_Meeting_Workbook.xlsm",
+      "sheet": "Alloc_Hold_List",
+      "state": "veryHidden",
+      "formula_count": 4602,
+      "referenced_sheets": [
+        "Current Inventory"
+      ],
+      "lookup_usage": {},
+      "volatile_usage": {},
+      "whole_column_references": 0,
+      "broken_reference_cells": 0,
+      "error": null,
+      "columns": [
+        {
+          "column": "F",
+          "header": "On Hand",
+          "cells": 2301,
+          "first_row": 2,
+          "last_row": 2302,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS('Current Inventory'!$C{r}:$C{r},'Current Inventory'!$A{r}:$A{r},$A{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "I",
+          "header": "BO Value ($)",
+          "cells": 2301,
+          "first_row": 2,
+          "last_row": 2302,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "G{r}*H{r}",
+          "other_patterns": []
+        }
+      ]
+    },
+    {
+      "workbook": "Supply_Chain_Update_Meeting_Workbook.xlsm",
+      "sheet": "ARC Build Live",
+      "state": "visible",
+      "formula_count": 3603,
+      "referenced_sheets": [
+        "ARC Buildable",
+        "ARC Parts Live"
+      ],
+      "lookup_usage": {
+        "XLOOKUP": 720,
+        "INDEX": 1440,
+        "MATCH": 1440
+      },
+      "volatile_usage": {},
+      "whole_column_references": 0,
+      "broken_reference_cells": 0,
+      "error": null,
+      "columns": [
+        {
+          "column": "A",
+          "header": "ARC BUILDABLE BY VARIANT \u2014 LIVE FROM BOM_MASTER",
+          "cells": 1,
+          "first_row": 6,
+          "last_row": 6,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "_xlfn._xlws.SORT(_xlfn.UNIQUE(_xlfn._xlws.FILTER(BOM_Master[Parent SKU],BOM_Master[Is ARC Table]=1)))",
+          "other_patterns": []
+        },
+        {
+          "column": "B",
+          "header": "",
+          "cells": 721,
+          "first_row": 4,
+          "last_row": 725,
+          "distinct_patterns": 2,
+          "consistency": 0.9986,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF($A{r}=\"\",\"\",IF(LEFT($A{r},10)=\"TP PRE ARC\",\"New (boxed)\",\"Legacy (discrete)\"))",
+          "other_patterns": [
+            {
+              "pattern": "COUNTA(_xlfn.ANCHORARRAY(A{r}))",
+              "cells": 1
+            }
+          ]
+        },
+        {
+          "column": "C",
+          "header": "",
+          "cells": 720,
+          "first_row": 6,
+          "last_row": 725,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF($A{r}=\"\",\"\",COUNTIFS(BOM_Master[Parent SKU],$A{r},BOM_Master[Is ARC Table],1))",
+          "other_patterns": []
+        },
+        {
+          "column": "D",
+          "header": "",
+          "cells": 720,
+          "first_row": 6,
+          "last_row": 725,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF($A{r}=\"\",\"\",_xlfn.LET(_xlpm.p,$A{r},_xlpm.cond,(BOM_Master[Parent SKU]=_xlpm.p)*(BOM_Master[Is ARC Table]=1),_xlpm.ln,_xlfn._xlws.FILTER(BOM_Master[Member SKU],_xlpm.cond),_xlpm.qt,_xlfn._xlws.FILTER(BOM_Master[Member Quantity],_xlpm.cond),_xlpm.av,_xlfn.XLOOKUP(_xlpm.ln,'ARC Parts Live'!$A{r}:$A{r},'ARC Parts Live'!$G{r}:$G{r},0),_xlpm.per,IF(IFERROR(_xlpm.qt,0)>0,FLOOR(_xlpm.av/_xlpm.qt,1),9999),_xlpm.b,MIN(_xlpm.per),_xlfn.HSTACK(_xlpm.b,INDEX(_xlpm.ln,MATCH(_xlpm.b,_xlpm.per,0)),INDEX(_xlpm.av,MATCH(_xlpm.b,_xlpm.per,0)))))",
+          "other_patterns": []
+        },
+        {
+          "column": "E",
+          "header": "",
+          "cells": 1,
+          "first_row": 4,
+          "last_row": 4,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "COUNTIF(D{r}:D{r},\">0\")",
+          "other_patterns": []
+        },
+        {
+          "column": "G",
+          "header": "",
+          "cells": 720,
+          "first_row": 6,
+          "last_row": 725,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF($A{r}=\"\",\"\",SUMIFS(Customer_Open_Orders[TtlBO],Customer_Open_Orders[Item],$A{r}))",
+          "other_patterns": []
+        },
+        {
+          "column": "H",
+          "header": "",
+          "cells": 720,
+          "first_row": 6,
+          "last_row": 725,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF($A{r}=\"\",\"\",SUMIFS(Forecast_Qty[Forecast Qty],Forecast_Qty[Item],$A{r},Forecast_Qty[Regional ID],\"Americas\",Forecast_Qty[YearMonth],\">=\"&'ARC Buildable'!$B{r},Forecast_Qty[YearMonth],\"<=\"&'ARC Buildable'!$B{r}))",
+          "other_patterns": []
+        }
+      ]
+    },
+    {
+      "workbook": "Shipment_Request_HIE__Updated.xlsm",
+      "sheet": "New Product Readiness",
+      "state": "visible",
+      "formula_count": 3069,
+      "referenced_sheets": [
+        "Alloc Overrides",
+        "Cue Completion Schedule",
+        "Defect Fallout to Date",
+        "HIEInv",
+        "HIEProdFlat",
+        "JAX Shipments by Date",
+        "Location Inventory",
+        "NetSuite Forecast",
+        "Open Order Report",
+        "Sales"
+      ],
+      "lookup_usage": {
+        "INDEX": 255,
+        "MATCH": 255
+      },
+      "volatile_usage": {
+        "TODAY": 255
+      },
+      "whole_column_references": 935,
+      "broken_reference_cells": 0,
+      "error": null,
+      "columns": [
+        {
+          "column": "A",
+          "header": "New Product Readiness Dashboard",
+          "cells": 2,
+          "first_row": 5,
+          "last_row": 7,
+          "distinct_patterns": 2,
+          "consistency": 0.5,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "COUNTA(A{r}:A{r})",
+          "other_patterns": [
+            {
+              "pattern": "\"BCP schedule check (On Hand + At Supplier + Production + Shipped to JAX, \u226585% by launch)  \u2014  Ahead of Schedule: \"&COUNTIF(M{r}:M{r},\"Ahead of Schedule\")&\"   |   On Track: \"&COUNTIF(M{r}:M{r},\"On Track\")&\"   |   Behind: \"&COUNTIF(M{r}:M{r},\"Behind\")",
+              "cells": 1
+            }
+          ]
+        },
+        {
+          "column": "C",
+          "header": "",
+          "cells": 1,
+          "first_row": 5,
+          "last_row": 5,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "COUNTIF(M{r}:M{r},\"Ahead of Schedule\")",
+          "other_patterns": []
+        },
+        {
+          "column": "D",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF(C{r}=\"\",\"TBD\",C{r}-TODAY())",
+          "other_patterns": []
+        },
+        {
+          "column": "E",
+          "header": "",
+          "cells": 1,
+          "first_row": 5,
+          "last_row": 5,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "COUNTIF(M{r}:M{r},\"On Track\")",
+          "other_patterns": []
+        },
+        {
+          "column": "F",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMPRODUCT((TRIM('Location Inventory'!$B{r}:$B{r})=$A{r})*IFERROR('Location Inventory'!$C{r}:$C{r}+0,0))",
+          "other_patterns": []
+        },
+        {
+          "column": "G",
+          "header": "",
+          "cells": 86,
+          "first_row": 5,
+          "last_row": 94,
+          "distinct_patterns": 2,
+          "consistency": 0.9884,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF(LEFT($A{r},3)<>\"BCP\",\"N/A\",SUMIFS(HIEInv!$B:$B,HIEInv!$A:$A,$A{r},HIEInv!$C:$C,\"regular inventory\"))",
+          "other_patterns": [
+            {
+              "pattern": "COUNTIF(M{r}:M{r},\"Behind\")",
+              "cells": 1
+            }
+          ]
+        },
+        {
+          "column": "H",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF(LEFT($A{r},3)<>\"BCP\",\"N/A\",IF($C{r}=\"\",SUMIFS(HIEProdFlat!$D:$D,HIEProdFlat!$B:$B,$A{r}),SUMIFS(HIEProdFlat!$D:$D,HIEProdFlat!$B:$B,$A{r},HIEProdFlat!$C:$C,\"<=\"&$C{r})))",
+          "other_patterns": []
+        },
+        {
+          "column": "I",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS('JAX Shipments by Date'!$D{r}:$D{r},'JAX Shipments by Date'!$A{r}:$A{r},$A{r})*(('JAX Shipments by Date'!$A{r}+10)<=$C{r})+SUMIFS('JAX Shipments by Date'!$E{r}:$E{r},'JAX Shipments by Date'!$A{r}:$A{r},$A{r})*(('JAX Shipments by Date'!$A{r}+10)<=$C{r})+SUMIFS('JAX Shipments by Date'!$F{r}:$F{r},'JAX Shipments by Date'!$A{r}:$A{r},$A{r})*(('JAX Shipments by Date'!$A{r}+10)<=$C{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "J",
+          "header": "",
+          "cells": 86,
+          "first_row": 5,
+          "last_row": 94,
+          "distinct_patterns": 2,
+          "consistency": 0.9884,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUM(F{r}:I{r})",
+          "other_patterns": [
+            {
+              "pattern": "COUNTIF(M{r}:M{r},\"N/A\")+COUNTIF(M{r}:M{r},\"TBD Date\")",
+              "cells": 1
+            }
+          ]
+        },
+        {
+          "column": "K",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF(OR($E{r}=\"\",$E{r}=0),\"N/A\",$J{r}/$E{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "L",
+          "header": "",
+          "cells": 86,
+          "first_row": 5,
+          "last_row": 94,
+          "distinct_patterns": 2,
+          "consistency": 0.9884,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF(LEFT($A{r},3)<>\"BCP\",\"N/A\",IF(COUNTIF(HIEProdFlat!$B:$B,$A{r})=0,\"None\",_xlfn.MAXIFS(HIEProdFlat!$C:$C,HIEProdFlat!$B:$B,$A{r})))",
+          "other_patterns": [
+            {
+              "pattern": "COUNTIF(S{r}:S{r},\"Yes*\")",
+              "cells": 1
+            }
+          ]
+        },
+        {
+          "column": "M",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF(LEFT($A{r},3)<>\"BCP\",\"N/A\",IF($C{r}=\"\",\"TBD Date\",IF(OR($E{r}=\"\",$E{r}=0),\"N/A\",IF($K{r}<0.85,\"Behind\",IF(OR(NOT(ISNUMBER($L{r})),$L{r}<=$C{r}-45),\"Ahead of Schedule\",\"On Track\")))))",
+          "other_patterns": []
+        },
+        {
+          "column": "N",
+          "header": "",
+          "cells": 1,
+          "first_row": 5,
+          "last_row": 5,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "COUNTIF(S{r}:S{r},\"No \u2014*\")",
+          "other_patterns": []
+        },
+        {
+          "column": "O",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF(OR($E{r}=\"\",$E{r}=0),\"\",ROUND($E{r}*$N{r},0))",
+          "other_patterns": []
+        },
+        {
+          "column": "P",
+          "header": "",
+          "cells": 1,
+          "first_row": 5,
+          "last_row": 5,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMPRODUCT((LEFT($A{r}:$A{r},3)=\"BCP\")*$T{r}:$T{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "Q",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF($AN{r}<>\"\",$AN{r},IF($AC{r}>0,SUMIFS(New_Prod_Alloc[Value],New_Prod_Alloc[Name],\"*\"&$A{r},New_Prod_Alloc[Attribute],\"B{r}C\"),$AD{r}))",
+          "other_patterns": []
+        },
+        {
+          "column": "R",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF($AO{r}<>\"\",$AO{r},IF($AC{r}>0,$AC{r}-$Q{r},$AE{r}-$AD{r}))",
+          "other_patterns": []
+        },
+        {
+          "column": "S",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF($Q{r}+$R{r}=0,\"No Alloc Data\",IF($R{r}=0,\"Yes \u2014 B{r}C only\",IF(AND(ISNUMBER($AL{r}),$AL{r}>0.85),\"Yes \u2014 completed >85%\",\"No \u2014 hold in China\")))",
+          "other_patterns": []
+        },
+        {
+          "column": "T",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS('Defect Fallout to Date'!$B{r}:$B{r},'Defect Fallout to Date'!$A{r}:$A{r},$A{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "U",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS('Defect Fallout to Date'!$C{r}:$C{r},'Defect Fallout to Date'!$A{r}:$A{r},$A{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "V",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF($O{r}=\"\",\"\",$T{r}-$O{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "W",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS('Cue Completion Schedule'!$C{r}:$C{r},'Cue Completion Schedule'!$A{r}:$A{r},$A{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "X",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF(LEFT($A{r},3)<>\"BCP\",\"N/A\",$F{r}+$G{r}+$W{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "Y",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF(LEFT($A{r},3)<>\"BCP\",\"N/A\",MAX(0,$E{r}-$X{r}))",
+          "other_patterns": []
+        },
+        {
+          "column": "Z",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "_xlfn.MINIFS('Cue Completion Schedule'!$B{r}:$B{r},'Cue Completion Schedule'!$A{r}:$A{r},$A{r},'Cue Completion Schedule'!$I{r}:$I{r},\"Yes\")",
+          "other_patterns": []
+        },
+        {
+          "column": "AA",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF(LEFT($A{r},3)<>\"BCP\",\"N/A\",IF($F{r}+$G{r}>=$E{r},\"Complete now\",IF($Z{r}=0,\"Not scheduled to complete\",$Z{r})))",
+          "other_patterns": []
+        },
+        {
+          "column": "AB",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF(AND(ISNUMBER($AA{r}),ISNUMBER($C{r})),$AA{r}-$C{r},\"\")",
+          "other_patterns": []
+        },
+        {
+          "column": "AC",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS(New_Prod_Alloc[Value],New_Prod_Alloc[Name],\"*\"&$A{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "AD",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS('NetSuite Forecast'!$D{r}:$D{r},'NetSuite Forecast'!$A{r}:$A{r},\"*\"&$A{r},'NetSuite Forecast'!$B{r}:$B{r},\"B{r}C\")",
+          "other_patterns": []
+        },
+        {
+          "column": "AE",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS('NetSuite Forecast'!$D{r}:$D{r},'NetSuite Forecast'!$A{r}:$A{r},\"*\"&$A{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "AF",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF($AP{r}<>\"\",$AP{r},IF($AC{r}>0,\"New Prod Alloc\",IF($AE{r}>0,\"NetSuite Forecast (fallback)\",\"None\")))",
+          "other_patterns": []
+        },
+        {
+          "column": "AG",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS(Sales!$D{r}:$D{r},Sales!$B{r}:$B{r},\"*\"&$A{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "AH",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF(NOT(ISNUMBER($C{r})),\"\",SUMIFS(Sales!$D{r}:$D{r},Sales!$B{r}:$B{r},\"*\"&$A{r},Sales!$A{r}:$A{r},\"<\"&$C{r}))",
+          "other_patterns": []
+        },
+        {
+          "column": "AI",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS(Sales!$D{r}:$D{r},Sales!$B{r}:$B{r},\"*\"&$A{r},Sales!$A{r}:$A{r},\">=\"&TODAY()-90)",
+          "other_patterns": []
+        },
+        {
+          "column": "AJ",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF($AG{r}<=0,\"No sales\",IF(AND(ISNUMBER($C{r}),$C{r}>TODAY()),\"SOLD PRE-LAUNCH\",\"Selling (launch passed)\"))",
+          "other_patterns": []
+        },
+        {
+          "column": "AK",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF(LEFT($A{r},3)<>\"BCP\",\"N/A\",MAX(0,$E{r}-$AG{r}))",
+          "other_patterns": []
+        },
+        {
+          "column": "AL",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF(LEFT($A{r},3)<>\"BCP\",\"N/A\",IF(OR($E{r}=\"\",$E{r}=0),\"N/A\",($F{r}+$G{r})/$E{r}))",
+          "other_patterns": []
+        },
+        {
+          "column": "AM",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS('Open Order Report'!$D{r}:$D{r},'Open Order Report'!$C{r}:$C{r},\"*\"&$A{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "AN",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IFERROR(INDEX('Alloc Overrides'!$B{r}:$B{r},MATCH($A{r},'Alloc Overrides'!$A{r}:$A{r},0)),\"\")",
+          "other_patterns": []
+        },
+        {
+          "column": "AO",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IFERROR(INDEX('Alloc Overrides'!$C{r}:$C{r},MATCH($A{r},'Alloc Overrides'!$A{r}:$A{r},0)),\"\")",
+          "other_patterns": []
+        },
+        {
+          "column": "AP",
+          "header": "",
+          "cells": 85,
+          "first_row": 10,
+          "last_row": 94,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IFERROR(INDEX('Alloc Overrides'!$D{r}:$D{r},MATCH($A{r},'Alloc Overrides'!$A{r}:$A{r},0)),\"\")",
+          "other_patterns": []
+        }
+      ]
+    },
+    {
+      "workbook": "Shipment_Request_HIE__Updated.xlsm",
+      "sheet": "Launch Status 2026",
+      "state": "visible",
+      "formula_count": 1777,
+      "referenced_sheets": [
+        "New Product Readiness",
+        "PO"
+      ],
+      "lookup_usage": {},
+      "volatile_usage": {},
+      "whole_column_references": 264,
+      "broken_reference_cells": 0,
+      "error": null,
+      "columns": [
+        {
+          "column": "A",
+          "header": "Launch Production Status \u2014 2026 launches (HIE)",
+          "cells": 88,
+          "first_row": 5,
+          "last_row": 92,
+          "distinct_patterns": 4,
+          "consistency": 0.3864,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "\"Flag: below 85% complete\"",
+          "other_patterns": [
+            {
+              "pattern": "\"No completion data (non-BCP)\"",
+              "cells": 28
+            },
+            {
+              "pattern": "\"Requested item\"",
+              "cells": 17
+            },
+            {
+              "pattern": "\"At or above 85% complete\"",
+              "cells": 9
+            }
+          ]
+        },
+        {
+          "column": "B",
+          "header": "",
+          "cells": 17,
+          "first_row": 5,
+          "last_row": 92,
+          "distinct_patterns": 7,
+          "consistency": 0.2353,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "\"P{r} Maple Teal\"",
+          "other_patterns": [
+            {
+              "pattern": "\"Panthera 10\"",
+              "cells": 3
+            },
+            {
+              "pattern": "\"Air Rush Rose Gold\"",
+              "cells": 2
+            },
+            {
+              "pattern": "\"BK Rush Rose Gold\"",
+              "cells": 2
+            },
+            {
+              "pattern": "\"LE Avant\"",
+              "cells": 2
+            },
+            {
+              "pattern": "\"P{r} Black/Pink\"",
+              "cells": 2
+            }
+          ]
+        },
+        {
+          "column": "C",
+          "header": "",
+          "cells": 88,
+          "first_row": 5,
+          "last_row": 92,
+          "distinct_patterns": 4,
+          "consistency": 0.9659,
+          "suspicious": true,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "'New Product Readiness'!A{r}",
+          "other_patterns": [
+            {
+              "pattern": "\"BCP PRE SE PAN 10-1 NW\"",
+              "cells": 1
+            },
+            {
+              "pattern": "\"BCP PRE SE PAN 10-2 LEA\"",
+              "cells": 1
+            },
+            {
+              "pattern": "\"BCP PRE SE PAN 10-3 WEB\"",
+              "cells": 1
+            }
+          ]
+        },
+        {
+          "column": "D",
+          "header": "",
+          "cells": 88,
+          "first_row": 5,
+          "last_row": 92,
+          "distinct_patterns": 4,
+          "consistency": 0.9659,
+          "suspicious": true,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "'New Product Readiness'!B{r}",
+          "other_patterns": [
+            {
+              "pattern": "\"Panthera 10 - Birdseye Maple Grip / No Wrap\"",
+              "cells": 1
+            },
+            {
+              "pattern": "\"Panthera 10 - Leather Handle / Lizard Wrap\"",
+              "cells": 1
+            },
+            {
+              "pattern": "\"Panthera 10 - Cat in Handle / No Wrap (Ecomm Excl.)\"",
+              "cells": 1
+            }
+          ]
+        },
+        {
+          "column": "E",
+          "header": "",
+          "cells": 88,
+          "first_row": 5,
+          "last_row": 92,
+          "distinct_patterns": 2,
+          "consistency": 0.9659,
+          "suspicious": true,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "'New Product Readiness'!C{r}",
+          "other_patterns": [
+            {
+              "pattern": "DATE(2026,9,15)",
+              "cells": 3
+            }
+          ]
+        },
+        {
+          "column": "F",
+          "header": "",
+          "cells": 88,
+          "first_row": 5,
+          "last_row": 92,
+          "distinct_patterns": 2,
+          "consistency": 0.9659,
+          "suspicious": true,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "'New Product Readiness'!D{r}",
+          "other_patterns": [
+            {
+              "pattern": "19",
+              "cells": 3
+            }
+          ]
+        },
+        {
+          "column": "G",
+          "header": "",
+          "cells": 88,
+          "first_row": 5,
+          "last_row": 92,
+          "distinct_patterns": 3,
+          "consistency": 0.9659,
+          "suspicious": true,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "'New Product Readiness'!E{r}",
+          "other_patterns": [
+            {
+              "pattern": "140",
+              "cells": 2
+            },
+            {
+              "pattern": "60",
+              "cells": 1
+            }
+          ]
+        },
+        {
+          "column": "H",
+          "header": "",
+          "cells": 88,
+          "first_row": 5,
+          "last_row": 92,
+          "distinct_patterns": 2,
+          "consistency": 0.9659,
+          "suspicious": true,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "'New Product Readiness'!F{r}",
+          "other_patterns": [
+            {
+              "pattern": "\"N/A\"",
+              "cells": 3
+            }
+          ]
+        },
+        {
+          "column": "I",
+          "header": "",
+          "cells": 88,
+          "first_row": 5,
+          "last_row": 92,
+          "distinct_patterns": 2,
+          "consistency": 0.9659,
+          "suspicious": true,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "'New Product Readiness'!G{r}",
+          "other_patterns": [
+            {
+              "pattern": "\"N/A\"",
+              "cells": 3
+            }
+          ]
+        },
+        {
+          "column": "J",
+          "header": "",
+          "cells": 88,
+          "first_row": 5,
+          "last_row": 92,
+          "distinct_patterns": 2,
+          "consistency": 0.9659,
+          "suspicious": true,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF(AND(ISNUMBER(H{r}),ISNUMBER(I{r})),H{r}+I{r},\"N/A\")",
+          "other_patterns": [
+            {
+              "pattern": "\"N/A\"",
+              "cells": 3
+            }
+          ]
+        },
+        {
+          "column": "K",
+          "header": "",
+          "cells": 88,
+          "first_row": 5,
+          "last_row": 92,
+          "distinct_patterns": 2,
+          "consistency": 0.9659,
+          "suspicious": true,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "'New Product Readiness'!H{r}",
+          "other_patterns": [
+            {
+              "pattern": "\"N/A\"",
+              "cells": 3
+            }
+          ]
+        },
+        {
+          "column": "L",
+          "header": "",
+          "cells": 88,
+          "first_row": 5,
+          "last_row": 92,
+          "distinct_patterns": 2,
+          "consistency": 0.9659,
+          "suspicious": true,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "'New Product Readiness'!I{r}",
+          "other_patterns": [
+            {
+              "pattern": "\"N/A\"",
+              "cells": 3
+            }
+          ]
+        },
+        {
+          "column": "M",
+          "header": "",
+          "cells": 88,
+          "first_row": 5,
+          "last_row": 92,
+          "distinct_patterns": 2,
+          "consistency": 0.9659,
+          "suspicious": true,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "'New Product Readiness'!AL{r}",
+          "other_patterns": [
+            {
+              "pattern": "\"N/A\"",
+              "cells": 3
+            }
+          ]
+        },
+        {
+          "column": "N",
+          "header": "",
+          "cells": 88,
+          "first_row": 5,
+          "last_row": 92,
+          "distinct_patterns": 2,
+          "consistency": 0.9659,
+          "suspicious": true,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "'New Product Readiness'!K{r}",
+          "other_patterns": [
+            {
+              "pattern": "\"N/A\"",
+              "cells": 3
+            }
+          ]
+        },
+        {
+          "column": "O",
+          "header": "",
+          "cells": 88,
+          "first_row": 5,
+          "last_row": 92,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF(COUNTIF(PO!$A:$A,\"*\"&$C{r})>0,\"Yes\",\"No\")",
+          "other_patterns": []
+        },
+        {
+          "column": "P",
+          "header": "",
+          "cells": 88,
+          "first_row": 5,
+          "last_row": 92,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIF(PO!$A:$A,\"*\"&$C{r},PO!$C:$C)",
+          "other_patterns": []
+        },
+        {
+          "column": "Q",
+          "header": "",
+          "cells": 88,
+          "first_row": 5,
+          "last_row": 92,
+          "distinct_patterns": 2,
+          "consistency": 0.9659,
+          "suspicious": true,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "'New Product Readiness'!M{r}",
+          "other_patterns": [
+            {
+              "pattern": "\"Not tracked \u2014 not made by HIE\"",
+              "cells": 3
+            }
+          ]
+        },
+        {
+          "column": "R",
+          "header": "",
+          "cells": 88,
+          "first_row": 5,
+          "last_row": 92,
+          "distinct_patterns": 2,
+          "consistency": 0.9659,
+          "suspicious": true,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "'New Product Readiness'!S{r}",
+          "other_patterns": [
+            {
+              "pattern": "\"Not tracked \u2014 not made by HIE\"",
+              "cells": 3
+            }
+          ]
+        },
+        {
+          "column": "S",
+          "header": "",
+          "cells": 88,
+          "first_row": 5,
+          "last_row": 92,
+          "distinct_patterns": 2,
+          "consistency": 0.9659,
+          "suspicious": true,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "'New Product Readiness'!L{r}",
+          "other_patterns": [
+            {
+              "pattern": "\"\"",
+              "cells": 3
+            }
+          ]
+        },
+        {
+          "column": "T",
+          "header": "",
+          "cells": 88,
+          "first_row": 5,
+          "last_row": 92,
+          "distinct_patterns": 2,
+          "consistency": 0.9659,
+          "suspicious": true,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "'New Product Readiness'!AA{r}",
+          "other_patterns": [
+            {
+              "pattern": "\"\"",
+              "cells": 3
+            }
+          ]
+        },
+        {
+          "column": "U",
+          "header": "",
+          "cells": 88,
+          "first_row": 5,
+          "last_row": 92,
+          "distinct_patterns": 2,
+          "consistency": 0.9659,
+          "suspicious": true,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "'New Product Readiness'!AM{r}",
+          "other_patterns": [
+            {
+              "pattern": "\"\"",
+              "cells": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "workbook": "Supply_Chain_Update_Meeting_Workbook.xlsm",
+      "sheet": "SO_Closure_List",
+      "state": "hidden",
+      "formula_count": 1690,
+      "referenced_sheets": [
+        "Current Inventory",
+        "Items on PO"
+      ],
+      "lookup_usage": {},
+      "volatile_usage": {},
+      "whole_column_references": 0,
+      "broken_reference_cells": 0,
+      "error": null,
+      "columns": [
+        {
+          "column": "I",
+          "header": "",
+          "cells": 564,
+          "first_row": 1,
+          "last_row": 565,
+          "distinct_patterns": 2,
+          "consistency": 0.9982,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "G{r}*H{r}",
+          "other_patterns": [
+            {
+              "pattern": "SUBTOTAL(9,I{r}:I{r})",
+              "cells": 1
+            }
+          ]
+        },
+        {
+          "column": "J",
+          "header": "",
+          "cells": 563,
+          "first_row": 3,
+          "last_row": 565,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS('Current Inventory'!$C{r}:$C{r},'Current Inventory'!$A{r}:$A{r},$A{r})",
+          "other_patterns": []
+        },
+        {
+          "column": "K",
+          "header": "",
+          "cells": 563,
+          "first_row": 3,
+          "last_row": 565,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "SUMIFS('Items on PO'!$N{r}:$N{r},'Items on PO'!$K{r}:$K{r},$A{r},'Items on PO'!$F{r}:$F{r},\"<>TO*\",'Items on PO'!$G{r}:$G{r},\"<>*Clawson*\",'Items on PO'!$G{r}:$G{r},\"<>*Predator Group*\")",
+          "other_patterns": []
+        }
+      ]
+    },
+    {
+      "workbook": "Supply_Chain_Update_Meeting_Workbook.xlsm",
+      "sheet": "ARC Parts Live",
+      "state": "visible",
+      "formula_count": 1362,
+      "referenced_sheets": [
+        "ARC Buildable"
+      ],
+      "lookup_usage": {},
+      "volatile_usage": {},
+      "whole_column_references": 0,
+      "broken_reference_cells": 0,
+      "error": null,
+      "columns": [
+        {
+          "column": "A",
+          "header": "ARC COMPONENT INVENTORY \u2014 LIVE",
+          "cells": 1,
+          "first_row": 6,
+          "last_row": 6,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "_xlfn._xlws.SORT(_xlfn.UNIQUE(_xlfn._xlws.FILTER(BOM_Master[Member SKU],(BOM_Master[Is ARC Table]=1)*(BOM_Master[Member SKU]<>\"\"))))",
+          "other_patterns": []
+        },
+        {
+          "column": "B",
+          "header": "",
+          "cells": 171,
+          "first_row": 4,
+          "last_row": 175,
+          "distinct_patterns": 2,
+          "consistency": 0.9942,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF($A{r}=\"\",\"\",IFERROR(\"BX\"&_xlfn.TEXTAFTER($A{r},\" BX\"),\"\u2014\"))",
+          "other_patterns": [
+            {
+              "pattern": "COUNTA(_xlfn.ANCHORARRAY(A{r}))",
+              "cells": 1
+            }
+          ]
+        },
+        {
+          "column": "C",
+          "header": "",
+          "cells": 170,
+          "first_row": 6,
+          "last_row": 175,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF($A{r}=\"\",\"\",COUNTIFS(BOM_Master[Member SKU],$A{r},BOM_Master[Is ARC Table],1))",
+          "other_patterns": []
+        },
+        {
+          "column": "D",
+          "header": "",
+          "cells": 170,
+          "first_row": 6,
+          "last_row": 175,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF($A{r}=\"\",\"\",SUMIFS(Current_Inventory[InvQty],Current_Inventory[SKU],$A{r}))",
+          "other_patterns": []
+        },
+        {
+          "column": "E",
+          "header": "",
+          "cells": 170,
+          "first_row": 6,
+          "last_row": 175,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF($A{r}=\"\",\"\",SUMIFS(Customer_Open_Orders[TtlBO],Customer_Open_Orders[Item],$A{r}))",
+          "other_patterns": []
+        },
+        {
+          "column": "F",
+          "header": "",
+          "cells": 170,
+          "first_row": 6,
+          "last_row": 175,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF($A{r}=\"\",\"\",SUMIFS(Items_On_PO[Quantity Remaining],Items_On_PO[Item],$A{r}))",
+          "other_patterns": []
+        },
+        {
+          "column": "G",
+          "header": "",
+          "cells": 170,
+          "first_row": 6,
+          "last_row": 175,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF($A{r}=\"\",\"\",MAX(0,$D{r}-$E{r}))",
+          "other_patterns": []
+        },
+        {
+          "column": "H",
+          "header": "",
+          "cells": 170,
+          "first_row": 6,
+          "last_row": 175,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF($A{r}=\"\",\"\",SUMIFS('ARC Buildable'!$T{r}:$T{r},'ARC Buildable'!$M{r}:$M{r},$A{r}))",
+          "other_patterns": []
+        },
+        {
+          "column": "I",
+          "header": "",
+          "cells": 170,
+          "first_row": 6,
+          "last_row": 175,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF($A{r}=\"\",\"\",$D{r}-$H{r})",
+          "other_patterns": []
+        }
+      ]
+    },
+    {
+      "workbook": "Supply_Chain_Update_Meeting_Workbook.xlsm",
+      "sheet": "Sales_Hygiene_Flags",
+      "state": "hidden",
+      "formula_count": 1053,
+      "referenced_sheets": [
+        "PE Config"
+      ],
+      "lookup_usage": {},
+      "volatile_usage": {},
+      "whole_column_references": 0,
+      "broken_reference_cells": 0,
+      "error": null,
+      "columns": [
+        {
+          "column": "J",
+          "header": "BO Value ($)",
+          "cells": 351,
+          "first_row": 2,
+          "last_row": 352,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "H{r}*I{r}",
+          "other_patterns": []
+        },
+        {
+          "column": "P",
+          "header": "Order Age (d)",
+          "cells": 351,
+          "first_row": 2,
+          "last_row": 352,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "'PE Config'!$B{r}-G{r}",
+          "other_patterns": []
+        },
+        {
+          "column": "Q",
+          "header": "Removal Step",
+          "cells": 351,
+          "first_row": 2,
+          "last_row": 352,
+          "distinct_patterns": 1,
+          "consistency": 1.0,
+          "suspicious": false,
+          "broken_reference_cells": 0,
+          "dominant_pattern": "IF(P{r}>Overdue_Cutoff,\"6 Severely overdue\",IF(ISNUMBER(SEARCH(\"Pending approval\",A{r})),\"7 Pending approval\",IF(ISNUMBER(SEARCH(\"Over credit limit\",A{r})),\"8 Over credit limit\",IF(ISNUMBER(SEARCH(\"Zero item rate\",A{r})),\"9 Zero item rate\",IF(ISNUMBER(SEARCH(\"Credit hold\",A{r})),\"10 Credit hold ON\",\"Kept (no removal rule)\")))))",
+          "other_patterns": []
+        }
+      ]
+    }
+  ]
+}

@@ -207,3 +207,86 @@ thresholds:
     - "LOW CONFIDENCE"
     - "OVER-FORECASTED"
     - "MONITOR"
+
+# ==========================================================================
+# PHASE 2 — CANONICAL EXTRACTION
+# One rule per concept, applied once. Every value here replaced a per-query
+# variant found by `python -m sc.cli reconcile`; the reconciliation report
+# names which workbook each rule came from and what it disagreed with.
+# ==========================================================================
+canonical:
+  # ---- SKU -------------------------------------------------------------
+  # NetSuite emits "PARENT : CHILD" for matrix items. Three queries derived the
+  # SKU from it and only one applied Text.Trim, so the same item produced two
+  # different key strings. This is the single agreed rule.
+  sku:
+    take_after_delimiter: ":"
+    trim: true              # was missing in 2 of 3 queries -> join failures
+    uppercase: true         # matches sc/models.py; set false if case is meaningful
+    collapse_internal_whitespace: true
+
+  # ---- CSV parsing -----------------------------------------------------
+  # Two queries read the same export with QuoteStyle.None, which ignores CSV
+  # quoting and shifts every value after an embedded comma. Quoting is always
+  # honoured here.
+  csv:
+    quoting: "standard"     # never "none"
+    encoding: "utf-8-sig"
+    thousands_separator: ","
+
+  # ---- Location dimension ---------------------------------------------
+  # Three queries each invented their own location grouping over the same
+  # locations. They are not in conflict — they are three legitimate groupings,
+  # so they become columns of one dimension instead of three copies of a query.
+  locations:
+    "US B2B":           { regional_id: "Americas",  revo_region: "Americas", jax: true,  supply_side: "domestic" }
+    "US B2C":           { regional_id: "B2C",       revo_region: "B2C",      jax: true,  supply_side: "domestic" }
+    "INT B2B":          { regional_id: "Americas",  revo_region: "Americas", jax: true,  supply_side: "domestic" }
+    "INT B2C":          { regional_id: "B2C",       revo_region: "B2C",      jax: true,  supply_side: "domestic" }
+    "INT Tradeshows":   { regional_id: "Tradeshow", revo_region: null,       jax: false, supply_side: "domestic" }
+    "Jax Tradeshows":   { regional_id: "Tradeshow", revo_region: null,       jax: false, supply_side: "domestic" }
+    "China Office":     { regional_id: "China",     revo_region: "AP",       jax: false, supply_side: "asia" }
+    "Sunray":           { regional_id: "China",     revo_region: "AP",       jax: false, supply_side: "asia" }
+    "HIE":              { regional_id: "China",     revo_region: "AP",       jax: false, supply_side: "asia" }
+    "Direct Shipments": { regional_id: "China",     revo_region: "AP",       jax: false, supply_side: "asia" }
+
+  # ---- Channels --------------------------------------------------------
+  # The new-product allocation export carries one column per channel. These are
+  # the column names as NetSuite emits them, mapped onto the canonical enum.
+  channels:
+    "B2C": "b2c"
+    "Americas": "americas"
+    "EMEA": "emea"
+    "ASIA": "apac"
+    "Tradeshows": "tradeshow"
+    "Sponsorships": "sponsorship"
+    "Marketing": "marketing"
+
+  # ---- Measures --------------------------------------------------------
+  # "Available" meant List.Sum([On Hand]) in two queries and List.Sum([Available])
+  # in a third. Both measures are kept, under names that cannot be confused.
+  measures:
+    qty_on_hand:   { source_column: "On Hand",           aggregation: "sum" }
+    qty_available: { source_column: "Available",         aggregation: "sum" }
+    qty_committed: { source_column: "Committed",         aggregation: "sum" }
+    qty_on_so:     { source_column: "On Sales Order",    aggregation: "sum" }
+    qty_on_po:     { source_column: "On Purchase Order", aggregation: "sum" }
+
+# --------------------------------------------------------------------------
+# EXTRACTION SOURCES
+# Schemas are recovered from the committed M by `python -m sc.cli schemas`,
+# which writes sc/export_schemas.yaml. Fetching is separate from parsing so the
+# readers are testable without credentials.
+# --------------------------------------------------------------------------
+extract:
+  schema_file: "sc/export_schemas.yaml"
+  drop_dir: "data/drop"          # local CSV exports, named <slug>.csv
+  fetch_mode: "local"            # local | url
+  # Live fetch needs the File Cabinet token, which is NOT stored here. It is read
+  # from the environment as SC_TOKEN_<slug uppercased>, e.g. SC_TOKEN_NETSUITE_2600947.
+  token_env_prefix: "SC_TOKEN_"
+  request_timeout_seconds: 120
+  gates:
+    max_null_key_ratio: 0.0        # a null SKU is never acceptable
+    max_unknown_location_ratio: 0.02
+    min_rows: 1

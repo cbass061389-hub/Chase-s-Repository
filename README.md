@@ -8,12 +8,21 @@ there and agree on the model before extraction code exists, so that is where
 this stops.
 
 Run it: **[`docs/PHASE0_RUNBOOK.md`](docs/PHASE0_RUNBOOK.md)**
-Review it: **[`SCHEMA.md`](SCHEMA.md)** — seven questions at the bottom are the ask.
+Review it: **[`SCHEMA.md`](SCHEMA.md)** — the findings and the eight questions are the ask.
 
 ```powershell
-python -m pip install PyYAML
-python -m sc.cli discover
+python -m pip install -r requirements.txt
+python -m sc.cli discover      # sweep the estate, extract the query stack
+python -m sc.cli schemas       # recover each export's schema from the M
+python -m sc.cli reconcile     # where the forked query logic diverges
+python -m sc.cli formulas      # what the calculation engines compute
+python -m sc.cli extract       # land the canonical layer
 ```
+
+> **Read `SCHEMA.md` §5 first.** `Position Engine` column P — Monthly Run Rate,
+> the denominator of months-of-supply — is `#REF!` in all 2,213 rows, and
+> `__CleanBO` loses 31% of its back-order rows the same way. Both sheets are
+> hidden, so nothing surfaces it.
 
 ## What Phase 0 gives you
 
@@ -68,17 +77,38 @@ sc/
     csv_probe.py       encoding, delimiter, headers, ragged rows
     classify.py        domain, role, grain, risk, duplicate truth
     report.py          manifest.json + DISCOVERY.md
-tests/                 61 tests, stdlib unittest, real packages built in temp dirs
+  analyze/             query reconciliation, schema recovery, formula mapping
+  extract/             canonical readers, normalization, gates, warehouse
+tests/                 122 tests, stdlib unittest, real packages built in temp dirs
 docs/PHASE0_RUNBOOK.md
 SCHEMA.md              canonical model proposal
 discovery/             generated: manifest.json + DISCOVERY.md (committed)
 queries/               generated: extracted M source (committed)
 ```
 
+## What the analysis found
+
+Run against the three real workbooks, the tools found these without anyone
+reading a formula by hand:
+
+| | |
+|---|---|
+| **A circular refresh dependency** | Meeting and HIE each refresh from the other, so refresh order decides the numbers |
+| **One export, three transformations** | 5 of 8 NetSuite exports feed 2-3 workbooks, each with its own logic. The reports don't disagree about data — they disagree about logic |
+| **`"Available"` means two things** | `List.Sum([On Hand])` in two queries, `List.Sum([Available])` in a third, all emitted under the same column name |
+| **A join key built four ways** | Only one of four SKU derivations trimmed whitespace, so the same item produced two key strings |
+| **`QuoteStyle.None`** | Two queries read a quoted CSV with quoting disabled, which shifts every value after an embedded comma |
+| **2,213 + 11,636 broken formula cells** | `Position Engine!P` is 100% `#REF!`; `__CleanBO` A-D are 31% |
+| **A superseded file still in use** | The meeting workbook's `HIEInv` reads an older HIE workbook than its three sibling queries |
+
+`discovery/RECONCILIATION.md` and `discovery/FORMULA_MAP.md` have the detail.
+Each finding names the two queries, the values, and the consequence.
+
 ## Honest status
 
-**Built and tested:** the discovery engine, the config layer, the canonical
-model proposal, 61 tests.
+**Built and tested:** the discovery engine, the query reconciler, export-schema
+recovery, the formula mapper, the canonical extraction layer, and the config
+layer that drives all of it. 122 tests.
 
 **Tested against what:** real OOXML and BIFF12 packages assembled byte-for-byte
 in the test suite — a genuine base64 DataMashup blob wrapping a real nested zip,
@@ -89,10 +119,14 @@ columns renamed since a query was written. The probes report low confidence and
 structural errors rather than guessing, so those surface as findings on the
 first run instead of as wrong numbers later.
 
-**Not built, on purpose:** Phase 2 readers, Phase 3 refresh orchestration,
-`SC_Reference.xlsx`, the HTML engine. `python -m sc.cli run` exits 2 and says
-why. Those need the manifest from a real sweep and sign-off on `SCHEMA.md`;
-written before that, they get rewritten.
+**Built for 3 of 8 exports:** `inventory_onhand`, `open_po` and `allocation`
+have canonical builders, gates and tests. The other five are declared with the
+reason they are not modelled yet — each names the blocking decision in
+`SCHEMA.md` rather than guessing a grain. `sc/extract/entities.py::UNMODELLED`
+is the list.
+
+**Not built, on purpose:** Phase 3 refresh orchestration, `SC_Reference.xlsx`,
+the HTML engine. `python -m sc.cli run` exits 2 and says why.
 
 **Where I disagree with the spec:** Phase 3 proposes an Excel COM driver to
 refresh Power Query. It works, and it is the wrong place to end up — a headless

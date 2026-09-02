@@ -104,10 +104,42 @@ class Thresholds:
 
 
 @dataclass(frozen=True)
+class CanonicalRules:
+    """The single agreed rule per concept. See `canonical:` in config.yaml."""
+
+    sku: Dict[str, Any]
+    csv: Dict[str, Any]
+    locations: Dict[str, Dict[str, Any]]
+    measures: Dict[str, Dict[str, Any]]
+    channels: Dict[str, str]
+
+    def location_attribute(self, location: str, attribute: str) -> Any:
+        """One attribute of one location, or None when the location is unmapped."""
+        entry: Dict[str, Any] = self.locations.get(str(location).strip(), {})
+        return entry.get(attribute)
+
+    @property
+    def known_locations(self) -> List[str]:
+        return sorted(self.locations)
+
+
+@dataclass(frozen=True)
+class ExtractConfig:
+    schema_file: str
+    drop_dir: str
+    fetch_mode: str
+    token_env_prefix: str
+    request_timeout_seconds: int
+    gates: Dict[str, float]
+
+
+@dataclass(frozen=True)
 class Config:
     project: Dict[str, Any]
     discovery: DiscoveryConfig
     thresholds: Thresholds
+    canonical: CanonicalRules
+    extract: ExtractConfig
     repo_root: Path
     config_path: Path
     _paths: Dict[str, str] = field(default_factory=dict)
@@ -194,10 +226,40 @@ def load_config(config_path: Path | str | None = None) -> Config:
         worst_flag_hierarchy=[str(f) for f in _require(thr_raw, "worst_flag_hierarchy", list, "thresholds")],
     )
 
+    canon_raw: Dict[str, Any] = _require(raw, "canonical", dict, "config root")
+    canonical: CanonicalRules = CanonicalRules(
+        sku=dict(_require(canon_raw, "sku", dict, "canonical")),
+        csv=dict(_require(canon_raw, "csv", dict, "canonical")),
+        locations={
+            str(name): dict(attributes or {})
+            for name, attributes in _require(canon_raw, "locations", dict, "canonical").items()
+        },
+        measures={
+            str(name): dict(spec or {})
+            for name, spec in _require(canon_raw, "measures", dict, "canonical").items()
+        },
+        channels={
+            str(column): str(channel)
+            for column, channel in _require(canon_raw, "channels", dict, "canonical").items()
+        },
+    )
+
+    ext_raw: Dict[str, Any] = _require(raw, "extract", dict, "config root")
+    extract: ExtractConfig = ExtractConfig(
+        schema_file=str(_require(ext_raw, "schema_file", str, "extract")),
+        drop_dir=str(_require(ext_raw, "drop_dir", str, "extract")),
+        fetch_mode=str(ext_raw.get("fetch_mode", "local")),
+        token_env_prefix=str(ext_raw.get("token_env_prefix", "SC_TOKEN_")),
+        request_timeout_seconds=int(ext_raw.get("request_timeout_seconds", 120)),
+        gates={str(k): float(v) for k, v in (ext_raw.get("gates") or {}).items()},
+    )
+
     return Config(
         project=dict(raw.get("project") or {}),
         discovery=discovery,
         thresholds=thresholds,
+        canonical=canonical,
+        extract=extract,
         repo_root=resolved.parent.parent,
         config_path=resolved,
         _paths={str(k): str(v) for k, v in _require(raw, "paths", dict, "config root").items()},

@@ -1,0 +1,621 @@
+generated_from: committed Power Query M source (queries/*/_Section1.m)
+note: Recovered from each query's Table.TransformColumnTypes step. Regenerate with `python -m sc.cli schemas`.
+  Edit `entity` and `notes` by hand; they are preserved across regeneration.
+sources:
+- slug: netsuite_2606291
+  key: netsuite:media:2606291
+  label: NetSuite File Cabinet export id=2606291 (account 3492685)
+  kind: netsuite_file_cabinet
+  entity: ''
+  notes: ''
+  partial: false
+  declared_by:
+  - Supply_Chain_Update_Meeting_Workbook.xlsm!Forecast Qty
+  - Shipment_Request_HIE__Updated.xlsm!NetSuite Forecast
+  columns:
+  - name: Item
+    dtype: string
+    m_type: type text
+  - name: Internal ID
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Product Category
+    dtype: string
+    m_type: type text
+  - name: Territory
+    dtype: string
+    m_type: type text
+  - name: Sub Location
+    dtype: string
+    m_type: type text
+  - name: Lead Group
+    dtype: string
+    m_type: type text
+  - name: Forecast QTY 01-2025
+    dtype: string
+    m_type: type text
+  - name: Forecast QTY 02-2025
+    dtype: string
+    m_type: type text
+  - name: Forecast QTY 03-2025
+    dtype: string
+    m_type: type text
+  - name: Forecast QTY 04-2025
+    dtype: string
+    m_type: type text
+  - name: Forecast QTY 05-2025
+    dtype: string
+    m_type: type text
+  - name: Forecast QTY 06-2025
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 07-2025
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 08-2025
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 09-2025
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 10-2025
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 11-2025
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 12-2025
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 01-2026
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 02-2026
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 03-2026
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 04-2026
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 05-2026
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 06-2026
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 07-2026
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 08-2026
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 09-2026
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 10-2026
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 11-2026
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 12-2026
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 01-2027
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 02-2027
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 03-2027
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 04-2027
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 05-2027
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 06-2027
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 07-2027
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 08-2027
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 09-2027
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 10-2027
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 11-2027
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Forecast QTY 12-2027
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Attribute
+    dtype: datetime64[ns]
+    m_type: type date
+  - name: Forecast Qty
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Regional ID
+    dtype: string
+    m_type: type text
+  - name: YearMonth
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Last Characters
+    dtype: string
+    m_type: type text
+  - name: Allocation Group
+    dtype: string
+    m_type: type text
+  - name: Forecast Mnth
+    dtype: datetime64[ns]
+    m_type: type date
+  - name: Value
+    dtype: Int64
+    m_type: Int64.Type
+- slug: netsuite_2600949
+  key: netsuite:media:2600949
+  label: NetSuite File Cabinet export id=2600949 (account 3492685)
+  kind: netsuite_file_cabinet
+  entity: ''
+  notes: ''
+  partial: false
+  declared_by:
+  - Supply_Chain_Update_Meeting_Workbook.xlsm!Customer Open Orders
+  - Shipment_Request_HIE__Updated.xlsm!Open_Order_Report
+  - Direct_Shipments_Consolidator.xlsm!Open Order
+  columns:
+  - name: Date
+    dtype: datetime64[ns]
+    m_type: type date
+  - name: Ship Date
+    dtype: datetime64[ns]
+    m_type: type date
+  - name: Document Number
+    dtype: string
+    m_type: type text
+  - name: Sales Rep
+    dtype: string
+    m_type: type text
+  - name: Territory
+    dtype: string
+    m_type: type text
+  - name: Company Name
+    dtype: string
+    m_type: type text
+  - name: Cust Terms
+    dtype: string
+    m_type: type text
+  - name: SO Terms
+    dtype: string
+    m_type: type text
+  - name: Status
+    dtype: string
+    m_type: type text
+  - name: Inventory Location
+    dtype: string
+    m_type: type text
+  - name: PO/Check Number
+    dtype: string
+    m_type: type text
+  - name: Item
+    dtype: string
+    m_type: type text
+  - name: Item Rate
+    dtype: Float64
+    m_type: type number
+  - name: Amount Discounted
+    dtype: Float64
+    m_type: type number
+    type_conflict:
+    - Int64.Type
+  - name: Qty Committed
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Amount Ready To Ship
+    dtype: Float64
+    m_type: type number
+  - name: Back Order Qty
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Back Order Amount
+    dtype: Float64
+    m_type: type number
+  - name: Commit
+    dtype: string
+    m_type: type text
+  - name: Amount Unbilled
+    dtype: Float64
+    m_type: type number
+  - name: Balance
+    dtype: Float64
+    m_type: type number
+  - name: Credit Limit
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Credit Limit Notes
+    dtype: string
+    m_type: type text
+  - name: Credit Hold
+    dtype: string
+    m_type: type text
+  - name: Product Category
+    dtype: string
+    m_type: type text
+  - name: TtlBO
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Days From Today
+    dtype: Int64
+    m_type: Int64.Type
+- slug: netsuite_2600947
+  key: netsuite:media:2600947
+  label: NetSuite File Cabinet export id=2600947 (account 3492685)
+  kind: netsuite_file_cabinet
+  entity: ''
+  notes: ''
+  partial: false
+  declared_by:
+  - Supply_Chain_Update_Meeting_Workbook.xlsm!Current Inventory
+  - Shipment_Request_HIE__Updated.xlsm!Location_Inventory
+  - Shipment_Request_HIE__Updated.xlsm!Regional Inv Loc
+  columns:
+  - name: Internal ID
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Inventory Location
+    dtype: string
+    m_type: type text
+  - name: Name
+    dtype: string
+    m_type: type text
+  - name: Region of Origin
+    dtype: string
+    m_type: type text
+  - name: Product Category
+    dtype: string
+    m_type: type text
+  - name: Replenishment Method
+    dtype: string
+    m_type: type text
+  - name: On Hand
+    dtype: Int64
+    m_type: Int64.Type
+  - name: On Sales Order
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Committed
+    dtype: string
+    m_type: type text
+  - name: Available
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Backordered
+    dtype: string
+    m_type: type text
+  - name: On Purchase Order
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Low Stock Items
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Not on PO
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Preferred Stock Level
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Location Reorder Point
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Safety Stock Level
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Reorder Multiple
+    dtype: string
+    m_type: type text
+  - name: Lead Time
+    dtype: Int64
+    m_type: Int64.Type
+  - name: End Of Life
+    dtype: string
+    m_type: type text
+  - name: Discontinued
+    dtype: string
+    m_type: type text
+  - name: Location Supply Type
+    dtype: string
+    m_type: type text
+  - name: Location Demand Source
+    dtype: string
+    m_type: type text
+  - name: Average Cost
+    dtype: Float64
+    m_type: type number
+- slug: netsuite_2600946
+  key: netsuite:media:2600946
+  label: NetSuite File Cabinet export id=2600946 (account 3492685)
+  kind: netsuite_file_cabinet
+  entity: ''
+  notes: ''
+  partial: false
+  declared_by:
+  - Supply_Chain_Update_Meeting_Workbook.xlsm!Items On PO
+  - Shipment_Request_HIE__Updated.xlsm!PO
+  columns:
+  - name: Date
+    dtype: datetime64[ns]
+    m_type: type date
+  - name: Expected Receipt Date
+    dtype: datetime64[ns]
+    m_type: type date
+  - name: Original PI Date
+    dtype: datetime64[ns]
+    m_type: type date
+  - name: 'Legacy PO #'
+    dtype: string
+    m_type: type text
+  - name: Status
+    dtype: string
+    m_type: type text
+  - name: Document Number
+    dtype: string
+    m_type: type text
+  - name: Name
+    dtype: string
+    m_type: type text
+  - name: Inventory Location
+    dtype: string
+    m_type: type text
+  - name: Line ID
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Product Category
+    dtype: string
+    m_type: type text
+  - name: Item
+    dtype: string
+    m_type: type text
+  - name: Quantity
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Quantity Fulfilled/Received
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Quantity Remaining
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Amount
+    dtype: Float64
+    m_type: type number
+  - name: $ Remaining
+    dtype: Float64
+    m_type: type number
+  - name: Closed
+    dtype: string
+    m_type: type text
+  - name: Memo (Main)
+    dtype: string
+    m_type: type text
+  - name: Item Note
+    dtype: string
+    m_type: type text
+- slug: netsuite_2620991
+  key: netsuite:media:2620991
+  label: NetSuite File Cabinet export id=2620991 (account 3492685)
+  kind: netsuite_file_cabinet
+  entity: ''
+  notes: ''
+  partial: false
+  declared_by:
+  - Supply_Chain_Update_Meeting_Workbook.xlsm!New Product Allocations
+  - Shipment_Request_HIE__Updated.xlsm!New Prod Alloc
+  columns:
+  - name: Internal ID
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Name
+    dtype: string
+    m_type: type text
+  - name: Description
+    dtype: string
+    m_type: type text
+  - name: Base Price
+    dtype: Float64
+    m_type: type number
+  - name: Targeted Launch Date
+    dtype: datetime64[ns]
+    m_type: type date
+  - name: B2C
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Sponsorships
+    dtype: Int64
+    m_type: Int64.Type
+  - name: EMEA
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Americas
+    dtype: Int64
+    m_type: Int64.Type
+  - name: ASIA
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Tradeshows
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Marketing
+    dtype: Int64
+    m_type: Int64.Type
+- slug: https_predatorgroup_sharepoint_com_share_20all_20files_forec
+  key: sharepoint:https://predatorgroup.sharepoint.com/share%20all%20files/forecast/reference/actuals%20vs%20forecast%20archive/sales%20actuals%20+%20forecast%20for%20actuals%20vs%20forecast.xlsx
+  label: https://predatorgroup.sharepoint.com/Share%20All%20Files/Forecast/Reference/Actuals%20vs%20Forecast%20Archive/Sales%20Actuals%20+%20Forecast%20for%20Actuals%20vs%20Forecast.xlsx
+  kind: sharepoint
+  entity: ''
+  notes: ''
+  partial: false
+  declared_by:
+  - Supply_Chain_Update_Meeting_Workbook.xlsm!ValidatedSales
+  columns:
+  - name: Location_lvl_1
+    dtype: string
+    m_type: type text
+  - name: Location_lvl_2
+    dtype: string
+    m_type: type text
+  - name: Location_lvl_3
+    dtype: string
+    m_type: type text
+  - name: Product_Line
+    dtype: string
+    m_type: type text
+  - name: Product
+    dtype: string
+    m_type: type text
+  - name: Product_Desc
+    dtype: string
+    m_type: type text
+  - name: Year
+    dtype: Int64
+    m_type: Int64.Type
+  - name: YYYYMM
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Name
+    dtype: string
+    m_type: type text
+  - name: Sum of Sales
+    dtype: Float64
+    m_type: type number
+  - name: Sum of Sum of Quantity
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Sum of GP
+    dtype: Float64
+    m_type: type number
+- slug: shipment_request_hie_updated_xlsm
+  key: file:shipment request hie - updated.xlsm
+  label: Shipment Request HIE - Updated.xlsm
+  kind: file
+  entity: ''
+  notes: ''
+  partial: false
+  declared_by:
+  - Supply_Chain_Update_Meeting_Workbook.xlsm!HIEProdFlat
+  - Supply_Chain_Update_Meeting_Workbook.xlsm!JingdianProdFlat
+  - Supply_Chain_Update_Meeting_Workbook.xlsm!PoisonInvFlat
+  columns:
+  - name: Date
+    dtype: datetime64[ns]
+    m_type: type date
+  - name: PO
+    dtype: Int64
+    m_type: Int64.Type
+    type_conflict:
+    - type any
+  - name: SKU
+    dtype: string
+    m_type: type text
+  - name: Chinese Item
+    dtype: string
+    m_type: type text
+  - name: Qty
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Status
+    dtype: string
+    m_type: type text
+  - name: Source Sheet
+    dtype: string
+    m_type: type text
+  - name: Unit Price
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Amount
+    dtype: Int64
+    m_type: Int64.Type
+- slug: supply_chain_update_meeting_workbook_xlsm
+  key: file:supply chain update meeting workbook.xlsm
+  label: Supply Chain Update Meeting Workbook.xlsm
+  kind: file
+  entity: ''
+  notes: ''
+  partial: false
+  declared_by:
+  - Shipment_Request_HIE__Updated.xlsm!HIE Shipment
+  columns:
+  - name: STATUS
+    dtype: string
+    m_type: type text
+  - name: SUBMITTED
+    dtype: string
+    m_type: type any
+  - name: CONFIRMED
+    dtype: string
+    m_type: type any
+  - name: RELEASED
+    dtype: string
+    m_type: type any
+  - name: Column5
+    dtype: string
+    m_type: type any
+  - name: Column6
+    dtype: string
+    m_type: type any
+  - name: Column7
+    dtype: string
+    m_type: type any
+  - name: Column8
+    dtype: string
+    m_type: type any
+- slug: shipment_request_hie_xlsm
+  key: file:shipment request hie .xlsm
+  label: Shipment Request HIE .xlsm
+  kind: file
+  entity: ''
+  notes: ''
+  partial: true
+  declared_by:
+  - Supply_Chain_Update_Meeting_Workbook.xlsm!HIEInv
+  columns:
+  - name: SKU
+    dtype: string
+    m_type: type text
+  - name: Qty
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Source
+    dtype: string
+    m_type: type text
+  - name: Remark
+    dtype: string
+    m_type: type any
+- slug: netsuite_2600950
+  key: netsuite:media:2600950
+  label: NetSuite File Cabinet export id=2600950 (account 3492685)
+  kind: netsuite_file_cabinet
+  entity: ''
+  notes: ''
+  partial: true
+  declared_by:
+  - Shipment_Request_HIE__Updated.xlsm!Sales
+  columns:
+  - name: Sum of Quantity
+    dtype: Int64
+    m_type: Int64.Type
+  - name: Date
+    dtype: datetime64[ns]
+    m_type: type date
+  - name: Quantity
+    dtype: Int64
+    m_type: Int64.Type
