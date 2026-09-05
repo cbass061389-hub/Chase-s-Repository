@@ -147,7 +147,7 @@ Public Sub ShowDispositionTest()
 
     On Error GoTo Fail
 
-    If Not SheetExists(SH_DEFECTS) Then
+    If Not HasSheet(SH_DEFECTS) Then
         Say SH_DEFECTS & " does not exist. Run QualityBuild first.", "REVO", vbExclamation
         Exit Sub
     End If

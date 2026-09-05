@@ -122,6 +122,16 @@ None of them had ever been executed. These are the defects found and fixed.
   times out holding a file lock.
 - Added `LogLine()` → `REVO_Migration_Log.txt`.
 
+### modConfig — one blocking collision found
+
+`Update_Analysis` exports `Public Function SheetExists` with a different
+signature. Two public procedures of the same name in different standard modules
+make every unqualified call an **"Ambiguous name detected"** compile error, so
+importing `modConfig` as written would have failed the whole `layers` phase.
+modConfig's version is renamed `HasSheet`. A full public-name scan across the
+new modules (62 exported names) against every existing module confirms this was
+the only collision.
+
 ### modMigrate
 - **`ResetAllUsedRanges` would have deleted macro buttons.** It deleted every row
   below and column right of the last used cell. On REVO Floor, Command Center,
@@ -201,9 +211,11 @@ control is one the builder creates, all four external calls resolve, no `.Send`.
 2. **The nine recipients.** `Weekly_Update_Input!C9` ships with a placeholder and
    `BuildWeeklyUpdate` refuses to run until it is replaced. I do not have the
    addresses.
-3. **`Production Table Backup`** is 41,120 rows of genuine archive data, not
-   formatting bloat like the other two big sheets. The brief cuts it. Confirm you
-   have it elsewhere, or it goes.
+3. **`Production Table` vs `Production Table Backup`.** See Phase 4 below — cutting
+   Production Table silently kills the Production Analysis builders. My
+   recommendation is to retain Production Table and cut only the 10 MB Backup.
+   The Backup is 41,120 rows of genuine archive data, not formatting bloat like
+   the other two big sheets, so confirm you have it elsewhere before it goes.
 4. **`frmDisposition` is not wired to anything.** It builds, opens, validates and
    writes to `Reject_Log_V2`, but no existing macro calls `Prime`. Hooking it into
    the live release flow means editing `REVO_Ops` — that is Phase 4, and I would
@@ -213,15 +225,74 @@ control is one the builder creates, all four external calls resolve, no `.Send`.
 
 ---
 
-## Phase 4 — not started
+## Phase 4 — measured, and far smaller than the brief assumed
 
-Delete `Tube_Dash` (2,251 lines, clean removal — `RemoveTubeDashModule` is ready).
-Then the 103 shared procedures in `REVO_Ops` (3,897 lines) and `Update_Analysis`
-(3,457 lines) that reference both sides of the split, converting each hard-coded
-dead-sheet reference to a guarded `GetSheet()`. That is run-catch-fix-rerun work
-against a live Excel, one procedure at a time, and it needs the `lean` phase
-finished first.
+The brief's "103 shared procedures" is a call-graph reachability count, not an
+edit surface. The actual surface was measured by scanning both modules for every
+hard-coded cut-sheet name:
 
-Confirmed VBA inventory: 12,264 lines across 78 components — `REVO_Ops` 3,897,
+| Module | Refs | Procedures with use-sites |
+|---|---|---|
+| `Tube_Dash` | 10 | deleted wholesale — 2,251 lines, no edits needed |
+| `REVO_Ops` | 16 | 7 procedures, 14 use-sites |
+| `Update_Analysis` | 6 | 10 procedures, 21 use-sites |
+
+**35 use-sites across 17 procedures.** And the code is better than expected:
+every single reference is already a named constant except one literal at
+`Update_Analysis` L3394 (`ProdTable_NormalizeDates_FromCutoff`). `Update_Analysis`
+also already guards with `SheetExists(...) Then Exit Sub` at the top of most
+builders, so it degrades rather than crashes.
+
+Several of these procedures are not "guard the reference" work — they are dead by
+definition, because their whole job is to build a sheet that is being deleted:
+`BuildBOMHierarchyView` (both modules), `Build_EST_REVO_INV`,
+`BuildFlattenedBOMMatrix`, `BuildComponentHealth`,
+`BuildComponentWeeklyInventoryAudit`, `BuildRevoProductionAllocator`. Those get
+retired, not patched.
+
+Realistically this is one working session against a live Excel, not the long tail
+the brief describes — but it still needs the `lean` phase finished first.
+
+### The one that needs your decision
+
+**`Production Analysis` is retained. It is built from `Production Table`, which
+is cut.** The formula dependency scan came back clean because this dependency
+lives in VBA, not in formulas:
+
+| Procedure | Reads | Writes |
+|---|---|---|
+| `BuildProdAnalysisBVP` | Production Table | Production Analysis |
+| `BuildProdAnalysisWVP` | Production Table | Production Analysis |
+| `Build8WeekView` | Production Table | Production Analysis |
+| `AppendProductionTable` | Production Table + Backup | Production Table |
+| `CleanProductionTableDuplicates` | Production Table | Production Table |
+| `DedupHorizon_ProdTable` | Production Table | Production Table |
+
+Because `Update_Analysis` already guards with `SheetExists`, deleting Production
+Table does not throw — those builders just `Exit Sub`. **Production Analysis
+silently stops updating.** Stale numbers on a retained reporting sheet with no
+error is a worse failure than a crash.
+
+Three ways out, in the order I would take them:
+
+1. **Retain `Production Table`** (0.08 MB — it is the *Backup* at 10 MB that
+   carries the weight) and cut only `Production Table Backup`. Keeps the whole
+   Production Analysis chain working, costs almost nothing in file size.
+   `AppendProductionTable` needs its backup-write path guarded, and that is a
+   ten-line change.
+2. Cut both and accept that Production Analysis is retired.
+3. Cut both and rebuild the three analysis builders against Release Log instead.
+   Most work, and Release Log may not carry the same forecast columns —
+   I would not start here.
+
+**Recommendation: option 1.** It is the only one that preserves a retained
+sheet's function, and the size argument does not apply — the 10 MB is entirely
+in the Backup.
+
+---
+
+## VBA inventory
+
+Confirmed at 12,264 lines across 78 components — `REVO_Ops` 3,897,
 `Update_Analysis` 3,457, `Tube_Dash` 2,251, `modRejectDashboard_OneStop` 922,
 `EmailKarimReport` 386, three userforms, and 65 eight-line sheet stubs.

@@ -91,8 +91,13 @@ Public Function RequireSheet(ByVal nm As String) As Worksheet
     End If
 End Function
 
-Public Function SheetExists(ByVal nm As String) As Boolean
-    SheetExists = Not GetSheet(nm) Is Nothing
+' Deliberately NOT called SheetExists. Update_Analysis already exports a
+' Public Function SheetExists with a different signature, and two public
+' procedures of the same name in different standard modules make every
+' unqualified call an "Ambiguous name detected" compile error. Renaming
+' ours is the one change that costs nothing and touches no legacy code.
+Public Function HasSheet(ByVal nm As String) As Boolean
+    HasSheet = Not GetSheet(nm) Is Nothing
 End Function
 
 '----------------------------------------------------------------------
