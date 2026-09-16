@@ -59,10 +59,17 @@ Public Sub REVO_Install()
     msg = msg & "Quality history coded: " & added & " events." & vbCrLf
 
     '--- 3. the form --------------------------------------------------------
+    ' Deliberately NOT fatal. The form is the most fragile step, and everything
+    ' after it is useful without it. A failure here is reported and the install
+    ' carries on.
     If REVO_FormBuilder.VBAccessOK() Then
         REVO_FormBuilder.REVO_BuildReleaseForm
-        built = True
-        msg = msg & "Release form rebuilt with quality capture." & vbCrLf
+        If Len(REVO_FormBuilder.LastBuildError) = 0 Then
+            built = True
+            msg = msg & "Release form rebuilt with quality capture." & vbCrLf
+        Else
+            msg = msg & "Release form NOT built - " & REVO_FormBuilder.LastBuildError & vbCrLf
+        End If
     Else
         msg = msg & "Release form NOT rebuilt - VBA project access is blocked. " & _
                     "See revo/docs/MANUAL_FORM_BUILD.md." & vbCrLf
@@ -92,10 +99,20 @@ Public Sub REVO_Install()
     Exit Sub
 
 Failed:
+    ' Err FIRST. Calling anything here - ResetAppState included - can clear it,
+    ' and reporting "Error 0" tells nobody anything.
+    Dim eNum As Long, eDesc As String
+    eNum = Err.Number
+    eDesc = Err.Description
+
     REVO_Core.ResetAppState
+    REVO_Core.Audit "REVO_Install", "ERROR", "Workbook", eNum & ": " & eDesc
+
     MsgBox "Install failed." & vbCrLf & vbCrLf & _
-           "Error " & Err.Number & ": " & Err.Description & vbCrLf & vbCrLf & _
+           "Error " & eNum & ": " & eDesc & vbCrLf & vbCrLf & _
            "Completed so far:" & vbCrLf & msg, vbCritical, "REVO Install"
+    Resume CleanExit
+CleanExit:
 End Sub
 
 '==============================================================================
@@ -113,9 +130,14 @@ Public Sub REVO_DailyUpdate()
     MsgBox "Cart velocity, quality dashboard and scorecard rebuilt.", vbInformation, "REVO"
     Exit Sub
 Failed:
+    Dim eNum As Long, eDesc As String
+    eNum = Err.Number
+    eDesc = Err.Description
     REVO_Core.ResetAppState
     MsgBox "Daily update failed." & vbCrLf & vbCrLf & _
-           "Error " & Err.Number & ": " & Err.Description, vbExclamation, "REVO"
+           "Error " & eNum & ": " & eDesc, vbExclamation, "REVO"
+    Resume CleanExit
+CleanExit:
 End Sub
 
 Public Sub REVO_BackfillQuality()
@@ -210,9 +232,14 @@ Public Sub REVO_SelfTest(Optional ByVal interactive As Boolean = True)
     Exit Sub
 
 Failed:
+    Dim eNum As Long, eDesc As String
+    eNum = Err.Number
+    eDesc = Err.Description
     REVO_Core.ResetAppState
     MsgBox "Self test failed to run." & vbCrLf & vbCrLf & _
-           "Error " & Err.Number & ": " & Err.Description, vbCritical, "REVO Self Test"
+           "Error " & eNum & ": " & eDesc, vbCritical, "REVO Self Test"
+    Resume CleanExit
+CleanExit:
 End Sub
 
 '------------------------------------------------------------------- checks
@@ -548,6 +575,8 @@ NoAccess:
             "VBA project access is blocked, or the form does not exist yet. " & _
             "Tick Trust access to the VBA project object model and run REVO_BuildReleaseForm.", nFail, nWarn)
     CheckForm = r
+    Resume Done
+Done:
 End Function
 
 '------------------------------------------------------------------ helpers

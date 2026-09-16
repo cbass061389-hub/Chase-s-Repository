@@ -274,15 +274,23 @@ Finish:
     Exit Sub
 
 FailFast:
-    Dim msg As String
+    ' Err FIRST, before Unload or ResetAppState can clear it.
+    Dim eNum As Long, eDesc As String, msg As String
+    eNum = Err.Number
+    eDesc = Err.Description
     msg = "REVO_ReleaseCarts failed at row " & r & "." & vbCrLf & vbCrLf & _
-          "Error " & Err.Number & ": " & Err.Description
+          "Error " & eNum & ": " & eDesc
+
     On Error Resume Next
     If Not frm Is Nothing Then Unload frm
     Set frm = Nothing
+    On Error GoTo 0
+
     REVO_Core.ResetAppState
     REVO_Core.Audit "REVO_Release", "ERROR", SH_FLOOR, msg
     MsgBox msg, vbCritical, "REVO Release"
+    Resume CleanExit
+CleanExit:
 End Sub
 
 '==============================================================================
@@ -596,6 +604,8 @@ NoForm:
            "Trust access to the VBA project object model.", _
            vbExclamation, "REVO Release"
     Set NewReleaseForm = Nothing
+    Resume Done
+Done:
 End Function
 
 Private Function RejectSummaryText(ByVal frm As Object) As String
@@ -751,5 +761,7 @@ Private Sub SendReleaseMail(ByVal summary As Object, ByVal detail As String, ByV
     mi.Display
     Exit Sub
 NoMail:
-    REVO_Core.Audit "REVO_Release", "MAIL FAILED", "Outlook", Err.Description
+    REVO_Core.Audit "REVO_Release", "MAIL FAILED", "Outlook", Err.Number & ": " & Err.Description
+    Resume Done
+Done:
 End Sub

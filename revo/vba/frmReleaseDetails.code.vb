@@ -348,4 +348,6 @@ Private Function SafeLong(ByVal v As Variant) As Long
     Exit Function
 Fallback:
     SafeLong = 0
+    Resume Done
+Done:
 End Function

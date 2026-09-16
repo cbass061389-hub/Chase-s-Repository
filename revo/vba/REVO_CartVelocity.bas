@@ -195,12 +195,17 @@ Public Sub REVO_UpdateCartVelocity(Optional ByVal silent As Boolean = False)
     Exit Sub
 
 Failed:
+    Dim eNum As Long, eDesc As String
+    eNum = Err.Number
+    eDesc = Err.Description
     REVO_Core.ResetAppState
-    REVO_Core.Audit "REVO_CartVelocity", "ERROR", SH_VELOCITY, Err.Description
+    REVO_Core.Audit "REVO_CartVelocity", "ERROR", SH_VELOCITY, eNum & ": " & eDesc
     If Not silent Then
         MsgBox "Cart velocity update failed." & vbCrLf & vbCrLf & _
-               "Error " & Err.Number & ": " & Err.Description, vbExclamation, "Cart Velocity"
+               "Error " & eNum & ": " & eDesc, vbExclamation, "Cart Velocity"
     End If
+    Resume CleanExit
+CleanExit:
 End Sub
 
 '==============================================================================

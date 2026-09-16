@@ -191,12 +191,17 @@ Public Sub BuildScorecard(Optional ByVal interactive As Boolean = True)
     Exit Sub
 
 Failed:
+    Dim eNum As Long, eDesc As String
+    eNum = Err.Number
+    eDesc = Err.Description
     REVO_Core.ResetAppState
-    REVO_Core.Audit "REVO_Scorecard", "ERROR", SH_SCORECARD, Err.Description
+    REVO_Core.Audit "REVO_Scorecard", "ERROR", SH_SCORECARD, eNum & ": " & eDesc
     If interactive Then
         MsgBox "Scorecard build failed." & vbCrLf & vbCrLf & _
-               "Error " & Err.Number & ": " & Err.Description, vbExclamation, "Scorecard"
+               "Error " & eNum & ": " & eDesc, vbExclamation, "Scorecard"
     End If
+    Resume CleanExit
+CleanExit:
 End Sub
 
 '==============================================================================

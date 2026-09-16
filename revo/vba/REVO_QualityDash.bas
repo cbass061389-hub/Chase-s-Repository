@@ -105,12 +105,17 @@ Public Sub BuildQualityDashboard(Optional ByVal interactive As Boolean = True)
     Exit Sub
 
 Failed:
+    Dim eNum As Long, eDesc As String
+    eNum = Err.Number
+    eDesc = Err.Description
     REVO_Core.ResetAppState
-    REVO_Core.Audit "REVO_QualityDash", "ERROR", SH_QUAL_DASH, Err.Description
+    REVO_Core.Audit "REVO_QualityDash", "ERROR", SH_QUAL_DASH, eNum & ": " & eDesc
     If interactive Then
         MsgBox "Quality dashboard build failed." & vbCrLf & vbCrLf & _
-               "Error " & Err.Number & ": " & Err.Description, vbExclamation, "Quality Dashboard"
+               "Error " & eNum & ": " & eDesc, vbExclamation, "Quality Dashboard"
     End If
+    Resume CleanExit
+CleanExit:
 End Sub
 
 '==============================================================================

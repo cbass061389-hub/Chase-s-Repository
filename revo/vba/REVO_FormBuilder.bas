@@ -26,6 +26,12 @@ Private Const VB_EXT_CT_MSFORM As Long = 3
 Private Const FORM_NAME        As String = "frmReleaseDetails"
 Private Const CODE_FILE        As String = "frmReleaseDetails.code.vb"
 
+' Set as the build walks, so a failure names the step rather than a bare number.
+Private step_ As String
+
+' Read by REVO_Install so it can report a build failure instead of swallowing it.
+Public LastBuildError As String
+
 '==============================================================================
 Public Sub REVO_BuildReleaseForm(Optional ByVal codePath As String = "")
     Dim vbp As Object, vbc As Object, dsn As Object
@@ -37,12 +43,14 @@ Public Sub REVO_BuildReleaseForm(Optional ByVal codePath As String = "")
     codePath = ResolveCodePath(codePath)
     If Len(codePath) = 0 Then Exit Sub
 
+    step_ = "reading " & CODE_FILE
     code = ReadTextFile(codePath)
     If Len(code) = 0 Then
         MsgBox "Could not read the form code from:" & vbCrLf & codePath, vbExclamation, "Form Builder"
         Exit Sub
     End If
 
+    step_ = "opening the VBA project"
     Set vbp = ThisWorkbook.VBProject
 
     '--- start clean --------------------------------------------------------
@@ -50,15 +58,25 @@ Public Sub REVO_BuildReleaseForm(Optional ByVal codePath As String = "")
     vbp.VBComponents.Remove vbp.VBComponents(FORM_NAME)
     On Error GoTo BuildFailed
 
+    step_ = "creating the UserForm component"
     Set vbc = vbp.VBComponents.Add(VB_EXT_CT_MSFORM)
     vbc.name = FORM_NAME
+
+    ' Caption / Width / Height go through the VBComponent Properties collection,
+    ' which is not exposed identically across Excel builds. Cosmetic only - a
+    ' failure here must not cost us the form.
+    On Error Resume Next
     vbc.Properties("Caption") = "Release cart"
     vbc.Properties("Width") = 664
     vbc.Properties("Height") = 500
+    Err.Clear
+    On Error GoTo BuildFailed
 
+    step_ = "opening the form designer"
     Set dsn = vbc.Designer
 
     '========================= header block =================================
+    step_ = "adding header controls"
     AddLabel dsn, "lblHdr1", "SKU", 12, 8, 34, 14, True
     AddLabel dsn, "lblSKU", "", 48, 8, 268, 14, False
     AddLabel dsn, "lblHdr2", "Cart", 324, 8, 30, 14, True
@@ -73,9 +91,9 @@ Public Sub REVO_BuildReleaseForm(Optional ByVal codePath As String = "")
     AddLabel dsn, "lblHdr6", "Remaining", 290, 26, 60, 14, True
     AddLabel dsn, "lblRemaining", "", 352, 26, 50, 14, False
 
-    AddLine dsn, "lnTop", 8, 46, 640
 
     '========================= release quantity =============================
+    step_ = "adding the release quantity controls"
     AddLabel dsn, "lblHdr7", "Release qty this pass", 12, 58, 122, 16, True
     AddTextBox dsn, "txtCartQtyRelease", 138, 56, 56, 20
 
@@ -86,6 +104,7 @@ Public Sub REVO_BuildReleaseForm(Optional ByVal codePath As String = "")
     AddLabel dsn, "lblWarn", "", 12, 78, 634, 14, False
 
     '========================= disposition quantities =======================
+    step_ = "adding the disposition quantity controls"
     AddLabel dsn, "lblHdr9", "Rework", 12, 100, 46, 16, True
     AddTextBox dsn, "txtRework", 60, 98, 46, 20
     AddLabel dsn, "lblHdr10", "B Grade", 128, 100, 50, 16, True
@@ -95,6 +114,7 @@ Public Sub REVO_BuildReleaseForm(Optional ByVal codePath As String = "")
     AddLabel dsn, "lblHdr12", "Anything non-zero must be coded below.", 350, 100, 296, 16, False
 
     '========================= rework detail ================================
+    step_ = "adding the rework panel"
     Set fra = AddFrame(dsn, "fraRework", "Rework detail", 8, 122, 644, 92)
     AddLabel fra, "lblRwD", "Defect", 8, 16, 44, 14, True
     AddCombo fra, "cboReworkDefect", 54, 14, 128, 18
@@ -110,6 +130,7 @@ Public Sub REVO_BuildReleaseForm(Optional ByVal codePath As String = "")
     AddTextBox fra, "txtReworkNotes", 54, 62, 574, 18
 
     '========================= B grade detail ===============================
+    step_ = "adding the B grade panel"
     Set fra = AddFrame(dsn, "fraBGrade", "B grade detail", 8, 220, 644, 70)
     AddLabel fra, "lblBgD", "Defect", 8, 16, 44, 14, True
     AddCombo fra, "cboBGradeDefect", 54, 14, 128, 18
@@ -121,6 +142,7 @@ Public Sub REVO_BuildReleaseForm(Optional ByVal codePath As String = "")
     AddTextBox fra, "txtBGradeNotes", 54, 38, 574, 18
 
     '========================= reject detail ================================
+    step_ = "adding the reject panel"
     Set fra = AddFrame(dsn, "fraReject", "Reject detail", 8, 296, 644, 92)
     AddLabel fra, "lblRjD", "Defect", 8, 16, 44, 14, True
     AddCombo fra, "cboRejectDefect", 54, 14, 128, 18
@@ -136,10 +158,12 @@ Public Sub REVO_BuildReleaseForm(Optional ByVal codePath As String = "")
     AddTextBox fra, "txtRejectNotes", 54, 62, 574, 18
 
     '========================= buttons ======================================
+    step_ = "adding the buttons"
     AddButton dsn, "btnSubmit", "Submit release", 430, 400, 108, 28, True
     AddButton dsn, "btnCancel", "Cancel", 548, 400, 100, 28, False
 
     '========================= code =========================================
+    step_ = "injecting the form code"
     With vbc.CodeModule
         If .CountOfLines > 0 Then .DeleteLines 1, .CountOfLines
         .AddFromString code
@@ -152,15 +176,31 @@ Public Sub REVO_BuildReleaseForm(Optional ByVal codePath As String = "")
            "coded defect, location, detected-at op, root cause and action for each." & vbCrLf & vbCrLf & _
            "Dropdowns read from the " & SH_QUAL_CODES & " sheet every time the form opens.", _
            vbInformation, "Form Builder"
+    LastBuildError = ""
     Exit Sub
 
 BuildFailed:
+    ' Capture Err FIRST - anything called below can clear it.
+    Dim eNum As Long, eDesc As String
+    eNum = Err.Number
+    eDesc = Err.Description
+
+    LastBuildError = "Error " & eNum & ": " & eDesc & "  (step: " & step_ & ")"
+    REVO_Core.Audit "REVO_FormBuilder", "ERROR", FORM_NAME, LastBuildError
+
     MsgBox "Building the form failed." & vbCrLf & vbCrLf & _
-           "Error " & Err.Number & ": " & Err.Description & vbCrLf & vbCrLf & _
+           "Error " & eNum & ": " & eDesc & vbCrLf & vbCrLf & _
+           "Failed at: " & step_ & vbCrLf & vbCrLf & _
            "If this says programmatic access is not trusted, tick" & vbCrLf & _
            "File > Options > Trust Center > Trust Center Settings >" & vbCrLf & _
            "Macro Settings > Trust access to the VBA project object model.", _
            vbCritical, "Form Builder"
+
+    ' Resume, not a bare End Sub. Falling off an active handler leaves the error
+    ' pending and it surfaces in the CALLER's handler with Err already cleared -
+    ' which is how the installer reported "Error 0".
+    Resume CleanExit
+CleanExit:
 End Sub
 
 '==============================================================================
@@ -177,50 +217,71 @@ Private Function AddCtl(ByVal parent As Object, ByVal progID As String, _
     Set c = parent.Controls.Add(progID, nm, True)
     If c Is Nothing Then Set c = parent.Add(progID, nm, True)
     On Error GoTo 0
-    If c Is Nothing Then Err.Raise vbObjectError + 1, , "Could not add control " & nm
-    c.Left = l: c.Top = t: c.Width = w: c.Height = h
+    If c Is Nothing Then
+        Err.Raise vbObjectError + 513, "REVO_FormBuilder", _
+                  "Could not add control '" & nm & "' (" & progID & ")"
+    End If
+
+    ' Geometry is structural - if this fails the form is unusable, so let it
+    ' raise. Fonts and styles are not, and are guarded at each call site.
+    c.Left = l
+    c.Top = t
+    c.Width = w
+    c.Height = h
     Set AddCtl = c
 End Function
+
+' Cosmetic property set that must never fail a build.
+Private Sub Cosmetic(ByVal c As Object, ByVal prop As String, ByVal v As Variant)
+    On Error Resume Next
+    CallByName c, prop, VbLet, v
+    Err.Clear
+    On Error GoTo 0
+End Sub
+
+Private Sub SetFont(ByVal c As Object, ByVal sz As Single, ByVal bold As Boolean)
+    On Error Resume Next
+    c.Font.name = "Segoe UI"
+    c.Font.Size = sz
+    c.Font.bold = bold
+    Err.Clear
+    On Error GoTo 0
+End Sub
 
 Private Sub AddLabel(ByVal parent As Object, ByVal nm As String, ByVal cap As String, _
                      ByVal l As Single, ByVal t As Single, ByVal w As Single, _
                      ByVal h As Single, ByVal bold As Boolean)
     Dim c As Object
     Set c = AddCtl(parent, "Forms.Label.1", nm, l, t, w, h)
-    c.Caption = cap
-    c.Font.name = "Segoe UI"
-    c.Font.Size = 9
-    c.Font.bold = bold
-    If bold Then c.ForeColor = RGB(70, 70, 70)
+    Cosmetic c, "Caption", cap
+    SetFont c, 9, bold
+    If bold Then Cosmetic c, "ForeColor", RGB(70, 70, 70)
 End Sub
 
 Private Sub AddBigLabel(ByVal parent As Object, ByVal nm As String, ByVal cap As String, _
                         ByVal l As Single, ByVal t As Single, ByVal w As Single, ByVal h As Single)
     Dim c As Object
     Set c = AddCtl(parent, "Forms.Label.1", nm, l, t, w, h)
-    c.Caption = cap
-    c.Font.name = "Segoe UI"
-    c.Font.Size = 14
-    c.Font.bold = True
-    c.ForeColor = RGB(0, 97, 0)
+    Cosmetic c, "Caption", cap
+    SetFont c, 14, True
+    Cosmetic c, "ForeColor", RGB(0, 97, 0)
 End Sub
 
 Private Sub AddTextBox(ByVal parent As Object, ByVal nm As String, _
                        ByVal l As Single, ByVal t As Single, ByVal w As Single, ByVal h As Single)
     Dim c As Object
     Set c = AddCtl(parent, "Forms.TextBox.1", nm, l, t, w, h)
-    c.Font.name = "Segoe UI"
-    c.Font.Size = 9
+    SetFont c, 9, False
 End Sub
 
 Private Sub AddCombo(ByVal parent As Object, ByVal nm As String, _
                      ByVal l As Single, ByVal t As Single, ByVal w As Single, ByVal h As Single)
     Dim c As Object
     Set c = AddCtl(parent, "Forms.ComboBox.1", nm, l, t, w, h)
-    c.Font.name = "Segoe UI"
-    c.Font.Size = 9
-    c.MatchRequired = False        ' free text still allowed; validation is in the form
-    c.Style = 0                    ' fmStyleDropDownCombo
+    SetFont c, 9, False
+    ' Free text stays allowed - validation lives in the form, not the control.
+    Cosmetic c, "MatchRequired", False
+    Cosmetic c, "Style", 0          ' fmStyleDropDownCombo
 End Sub
 
 Private Function AddFrame(ByVal parent As Object, ByVal nm As String, ByVal cap As String, _
@@ -228,10 +289,8 @@ Private Function AddFrame(ByVal parent As Object, ByVal nm As String, ByVal cap 
                           ByVal w As Single, ByVal h As Single) As Object
     Dim c As Object
     Set c = AddCtl(parent, "Forms.Frame.1", nm, l, t, w, h)
-    c.Caption = cap
-    c.Font.name = "Segoe UI"
-    c.Font.Size = 9
-    c.Font.bold = True
+    Cosmetic c, "Caption", cap
+    SetFont c, 9, True
     Set AddFrame = c
 End Function
 
@@ -240,27 +299,10 @@ Private Sub AddButton(ByVal parent As Object, ByVal nm As String, ByVal cap As S
                       ByVal h As Single, ByVal isDefault As Boolean)
     Dim c As Object
     Set c = AddCtl(parent, "Forms.CommandButton.1", nm, l, t, w, h)
-    c.Caption = cap
-    c.Font.name = "Segoe UI"
-    c.Font.Size = 9
-    c.Font.bold = isDefault
-    On Error Resume Next
-    c.Default = isDefault
-    c.Cancel = Not isDefault
-    On Error GoTo 0
-End Sub
-
-Private Sub AddLine(ByVal parent As Object, ByVal nm As String, _
-                    ByVal l As Single, ByVal t As Single, ByVal w As Single)
-    Dim c As Object
-    On Error Resume Next
-    Set c = AddCtl(parent, "Forms.Label.1", nm, l, t, w, 1)
-    If Not c Is Nothing Then
-        c.Caption = ""
-        c.BackColor = RGB(200, 200, 200)
-        c.BackStyle = 1
-    End If
-    On Error GoTo 0
+    Cosmetic c, "Caption", cap
+    SetFont c, 9, isDefault
+    Cosmetic c, "Default", isDefault
+    Cosmetic c, "Cancel", Not isDefault
 End Sub
 
 '==============================================================================
@@ -273,6 +315,7 @@ Public Function VBAccessOK() As Boolean
     VBAccessOK = True
     Exit Function
 Blocked:
+    LastBuildError = "Programmatic access to the VBA project is blocked."
     MsgBox "Excel is blocking programmatic access to the VBA project." & vbCrLf & vbCrLf & _
            "Tick this once and re-run:" & vbCrLf & vbCrLf & _
            "  File > Options > Trust Center > Trust Center Settings >" & vbCrLf & _
@@ -281,6 +324,8 @@ Blocked:
            "for the control list to add by hand.", _
            vbExclamation, "Form Builder"
     VBAccessOK = False
+    Resume Done
+Done:
 End Function
 
 Private Function ResolveCodePath(ByVal supplied As String) As String
@@ -326,6 +371,8 @@ Fail:
     On Error Resume Next
     Close #ff
     ReadTextFile = ""
+    Resume Done
+Done:
 End Function
 
 '==============================================================================

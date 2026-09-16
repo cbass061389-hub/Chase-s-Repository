@@ -176,6 +176,8 @@ Public Function SafeD(ByVal v As Variant, Optional ByVal dflt As Double = 0#) As
     Exit Function
 Fallback:
     SafeD = dflt
+    Resume Done
+Done:
 End Function
 
 Public Function SafeL(ByVal v As Variant, Optional ByVal dflt As Long = 0) As Long
@@ -188,6 +190,8 @@ Public Function SafeL(ByVal v As Variant, Optional ByVal dflt As Long = 0) As Lo
     Exit Function
 Fallback:
     SafeL = dflt
+    Resume Done
+Done:
 End Function
 
 Public Function SafeS(ByVal v As Variant, Optional ByVal dflt As String = "") As String
@@ -198,6 +202,8 @@ Public Function SafeS(ByVal v As Variant, Optional ByVal dflt As String = "") As
     Exit Function
 Fallback:
     SafeS = dflt
+    Resume Done
+Done:
 End Function
 
 Public Function SafeDate(ByVal v As Variant, Optional ByVal dflt As Date = 0) As Date
@@ -211,6 +217,8 @@ Public Function SafeDate(ByVal v As Variant, Optional ByVal dflt As Date = 0) As
     Exit Function
 Fallback:
     SafeDate = dflt
+    Resume Done
+Done:
 End Function
 
 ' TRUE only for a genuine boolean-true, a non-zero number, or the strings
@@ -226,6 +234,8 @@ Public Function Boolish(ByVal v As Variant) As Boolean
     Exit Function
 Fallback:
     Boolish = False
+    Resume Done
+Done:
 End Function
 
 '==============================================================================
@@ -390,13 +400,27 @@ Public Sub PopAppState()
 End Sub
 
 ' Force everything back on regardless of depth. For error handlers only.
+' Called from error handlers, so it must not disturb Err. "On Error GoTo 0"
+' resets Err.Number to 0 - that is exactly how a real failure got reported as
+' "Error 0". The error is captured and put back before returning.
 Public Sub ResetAppState()
+    Dim eNum As Long, eDesc As String, eSrc As String
+    eNum = Err.Number
+    eDesc = Err.Description
+    eSrc = Err.source
+
     mDepth = 0
+    On Error Resume Next
     Application.ScreenUpdating = True
     Application.EnableEvents = True
-    On Error Resume Next
     Application.Calculation = xlCalculationAutomatic
     On Error GoTo 0
+
+    If eNum <> 0 Then
+        Err.Number = eNum
+        Err.Description = eDesc
+        Err.source = eSrc
+    End If
 End Sub
 
 ' A modal UserForm will not paint reliably while ScreenUpdating is off. Wrap
