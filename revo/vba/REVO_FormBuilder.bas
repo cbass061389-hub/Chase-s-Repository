@@ -38,15 +38,35 @@ Public Sub REVO_BuildReleaseForm(Optional ByVal codePath As String = "")
     Dim code As String
     Dim fra As Object
 
-    If Not VBAccessOK() Then Exit Sub
+    ' Armed FIRST. File probing happens below, and an unguarded Dir$ against a
+    ' OneDrive / SharePoint path raises error 52 before any handler existed -
+    ' which escaped to the installer and aborted the whole run.
+    On Error GoTo BuildFailed
+    LastBuildError = ""
 
+    If Not VBAccessOK() Then
+        LastBuildError = "Programmatic access to the VBA project is blocked."
+        Exit Sub
+    End If
+
+    step_ = "locating " & CODE_FILE
     codePath = ResolveCodePath(codePath)
-    If Len(codePath) = 0 Then Exit Sub
 
-    step_ = "reading " & CODE_FILE
-    code = ReadTextFile(codePath)
+    step_ = "reading the form code"
+    If Len(codePath) = 0 Then
+        code = ReadCachedCode()
+    Else
+        code = ReadTextFile(codePath)
+        If Len(code) = 0 Then code = ReadCachedCode()
+    End If
+
     If Len(code) = 0 Then
-        MsgBox "Could not read the form code from:" & vbCrLf & codePath, vbExclamation, "Form Builder"
+        LastBuildError = "Could not find or read " & CODE_FILE & "."
+        MsgBox "Could not read the form code." & vbCrLf & vbCrLf & _
+               "Looked beside the workbook, in revo\vba, in Downloads and on the " & _
+               "Desktop, and in the cached copy inside this workbook." & vbCrLf & vbCrLf & _
+               "Run REVO_BuildReleaseForm again and point the file picker at " & _
+               CODE_FILE & ".", vbExclamation, "Form Builder"
         Exit Sub
     End If
 
@@ -56,6 +76,7 @@ Public Sub REVO_BuildReleaseForm(Optional ByVal codePath As String = "")
     '--- start clean --------------------------------------------------------
     On Error Resume Next
     vbp.VBComponents.Remove vbp.VBComponents(FORM_NAME)
+    Err.Clear
     On Error GoTo BuildFailed
 
     step_ = "creating the UserForm component"
@@ -177,6 +198,7 @@ Public Sub REVO_BuildReleaseForm(Optional ByVal codePath As String = "")
            "Dropdowns read from the " & SH_QUAL_CODES & " sheet every time the form opens.", _
            vbInformation, "Form Builder"
     LastBuildError = ""
+    CacheCode code
     Exit Sub
 
 BuildFailed:
@@ -328,34 +350,155 @@ Blocked:
 Done:
 End Function
 
-Private Function ResolveCodePath(ByVal supplied As String) As String
+' Does this path point at a readable file? Never raises - Dir$ throws error 52
+' on a URL, a disconnected drive, or a malformed path, and a probe must not.
+Private Function FileExists(ByVal path As String) As Boolean
+    On Error Resume Next
+    If Len(Trim$(path)) = 0 Then
+        FileExists = False
+    ElseIf IsUrlPath(path) Then
+        FileExists = False          ' Dir$ cannot read http/https at all
+    Else
+        FileExists = (Len(Dir$(path)) > 0)
+    End If
+    If Err.Number <> 0 Then FileExists = False
+    Err.Clear
+    On Error GoTo 0
+End Function
+
+' A workbook opened from OneDrive or SharePoint reports an https:// path.
+Public Function IsUrlPath(ByVal path As String) As Boolean
     Dim p As String
+    p = LCase$(Trim$(path))
+    IsUrlPath = (Left$(p, 7) = "http://" Or Left$(p, 8) = "https://")
+End Function
+
+Private Function Joined(ByVal folder As String, ByVal leaf As String) As String
+    If Len(folder) = 0 Then Exit Function
+    If Right$(folder, 1) = Application.PathSeparator Then
+        Joined = folder & leaf
+    Else
+        Joined = folder & Application.PathSeparator & leaf
+    End If
+End Function
+
+' Every place the form code plausibly is, cheapest first. Nothing here can
+' raise; each candidate is probed through FileExists.
+Private Function ResolveCodePath(ByVal supplied As String) As String
     Dim fd As Object
+    Dim wbPath As String, userPath As String
+    Dim cand As String
+    Dim i As Long
+    Dim folders(1 To 8) As String
 
-    If Len(supplied) > 0 Then
-        If Len(Dir$(supplied)) > 0 Then ResolveCodePath = supplied: Exit Function
-    End If
+    If FileExists(supplied) Then ResolveCodePath = supplied: Exit Function
 
-    p = ThisWorkbook.Path
-    If Len(p) > 0 Then
-        If Len(Dir$(p & Application.PathSeparator & CODE_FILE)) > 0 Then
-            ResolveCodePath = p & Application.PathSeparator & CODE_FILE
-            Exit Function
+    On Error Resume Next
+    wbPath = ThisWorkbook.path
+    userPath = Environ$("USERPROFILE")
+    Err.Clear
+    On Error GoTo 0
+
+    ' A OneDrive / SharePoint workbook has no usable local folder of its own.
+    If IsUrlPath(wbPath) Then wbPath = ""
+
+    folders(1) = wbPath
+    folders(2) = Joined(Joined(wbPath, "revo"), "vba")
+    folders(3) = Joined(userPath, "Downloads")
+    folders(4) = Joined(Joined(userPath, "Downloads"), "revo")
+    folders(5) = Joined(Joined(Joined(userPath, "Downloads"), "revo"), "vba")
+    folders(6) = Joined(userPath, "Desktop")
+    folders(7) = Joined(Joined(userPath, "Desktop"), "vba")
+    folders(8) = CurDirSafe()
+
+    For i = 1 To 8
+        If Len(folders(i)) > 0 Then
+            cand = Joined(folders(i), CODE_FILE)
+            If FileExists(cand) Then ResolveCodePath = cand: Exit Function
         End If
-        If Len(Dir$(p & Application.PathSeparator & "revo" & Application.PathSeparator & _
-                    "vba" & Application.PathSeparator & CODE_FILE)) > 0 Then
-            ResolveCodePath = p & Application.PathSeparator & "revo" & _
-                              Application.PathSeparator & "vba" & _
-                              Application.PathSeparator & CODE_FILE
-            Exit Function
-        End If
-    End If
+    Next i
 
+    ' Nothing found. The cached copy inside the workbook is tried by the caller;
+    ' offer the picker first because a real file is always preferable.
+    On Error Resume Next
     Set fd = Application.FileDialog(3)      ' msoFileDialogFilePicker
-    fd.Title = "Locate " & CODE_FILE
-    fd.Filters.Clear
-    fd.Filters.Add "Form code", "*.vb; *.txt; *.bas"
-    If fd.Show = -1 Then ResolveCodePath = fd.SelectedItems(1)
+    If Not fd Is Nothing Then
+        fd.Title = "Locate " & CODE_FILE
+        fd.Filters.Clear
+        fd.Filters.Add "Form code", "*.vb; *.txt; *.bas"
+        fd.Filters.Add "All files", "*.*"
+        If fd.Show = -1 Then ResolveCodePath = fd.SelectedItems(1)
+    End If
+    Err.Clear
+    On Error GoTo 0
+End Function
+
+Private Function CurDirSafe() As String
+    On Error Resume Next
+    CurDirSafe = CurDir$
+    Err.Clear
+    On Error GoTo 0
+End Function
+
+'==============================================================================
+' CACHED SOURCE
+'
+' After a successful build the form code is stored on a veryHidden sheet, so a
+' rebuild works even when the original file has moved, the workbook lives on
+' SharePoint, or someone opens it on a machine that never had the repo. The
+' file on disk stays the source of truth when it is reachable.
+'==============================================================================
+Private Const SH_FORM_SRC As String = "REVO_FormSrc"
+
+Private Sub CacheCode(ByVal code As String)
+    Dim ws As Worksheet
+    Dim parts As Variant
+    Dim i As Long
+
+    On Error GoTo GiveUp
+    Set ws = REVO_Core.GetOrCreateSheet(SH_FORM_SRC)
+    ws.Cells.Clear
+    ws.Cells(1, 1).Value = "Cached source of " & CODE_FILE & " - written by REVO_BuildReleaseForm. Do not edit."
+
+    parts = Split(Replace$(code, vbCrLf, vbLf), vbLf)
+    For i = LBound(parts) To UBound(parts)
+        ' Leading apostrophe keeps Excel from interpreting a line as a formula.
+        ws.Cells(i + 2, 1).Value = "'" & CStr(parts(i))
+    Next i
+
+    ws.Visible = xlSheetVeryHidden
+    Exit Sub
+GiveUp:
+    Resume Done
+Done:
+End Sub
+
+Private Function ReadCachedCode() As String
+    Dim ws As Worksheet
+    Dim lastR As Long, i As Long
+    Dim sb As String, ln As String
+
+    On Error GoTo GiveUp
+    Set ws = REVO_Core.GetSheet(SH_FORM_SRC)
+    If ws Is Nothing Then Exit Function
+
+    lastR = ws.Cells(ws.Rows.Count, 1).End(xlUp).row
+    If lastR < 2 Then Exit Function
+
+    For i = 2 To lastR
+        ln = CStr(ws.Cells(i, 1).Value)
+        If Len(ln) > 0 Then
+            If Left$(ln, 1) = "'" Then ln = Mid$(ln, 2)
+        End If
+        sb = sb & ln & vbCrLf
+    Next i
+
+    ReadCachedCode = sb
+    Exit Function
+GiveUp:
+    ReadCachedCode = ""
+    Resume Done
+Done:
 End Function
 
 Private Function ReadTextFile(ByVal path As String) As String

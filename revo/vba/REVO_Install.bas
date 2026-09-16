@@ -59,6 +59,14 @@ Public Sub REVO_Install()
     msg = msg & "Quality history coded: " & added & " events." & vbCrLf
 
     '--- 3. the form --------------------------------------------------------
+    ' A workbook opened from OneDrive or SharePoint reports an https:// path, so
+    ' the form code cannot be found beside it. Say so before the file picker
+    ' appears, otherwise the prompt looks like a fault.
+    If REVO_FormBuilder.IsUrlPath(ThisWorkbook.path) Then
+        msg = msg & "Workbook is on OneDrive/SharePoint - form code cannot be " & _
+                    "located beside it; searched Downloads and Desktop instead." & vbCrLf
+    End If
+
     ' Deliberately NOT fatal. The form is the most fragile step, and everything
     ' after it is useful without it. A failure here is reported and the install
     ' carries on.

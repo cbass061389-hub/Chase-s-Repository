@@ -138,8 +138,19 @@ a commit.
 
 **"Programmatic access to the VBA project is not trusted"** — step 1.
 
-**Form builder cannot find the code file** — it looks beside the workbook, then
-in `revo/vba/`, then asks. Point it at `frmReleaseDetails.code.vb`.
+**Form builder cannot find the code file** — it searches, in order: any path you
+pass it, the workbook's own folder, `revo\vba` beneath it, Downloads, Desktop,
+the current directory, and a copy cached inside the workbook. Failing all of
+that it opens a file picker — point it at `frmReleaseDetails.code.vb`.
+
+**If the workbook lives on OneDrive or SharePoint**, `ThisWorkbook.Path` is an
+`https://` URL, not a folder, so the code file cannot be found beside it. The
+install says so and searches Downloads and Desktop instead. Keep the `revo\vba`
+folder in Downloads and it resolves on its own.
+
+After the first successful build the form code is cached on a veryHidden sheet
+inside the workbook, so later rebuilds need no file at all — including on a
+machine that never had the repo.
 
 **Button still runs the old macro** — run `REVO_RewireButtons`, or right-click
 the button → Assign Macro → `REVO_ReleaseCarts`.
