@@ -163,44 +163,42 @@ Public Sub EnsureQualityCodes(Optional ByVal forceReseed As Boolean = False)
     ws.Range("G3").Value = "Classifier map - longest keyword wins. Used to code historical free text and to pre-select on the form."
     ws.Range("G3").Font.Italic = True
 
-    Dim km As Variant
-    km = Array( _
-        Array("collet crush", "Collet Crush", "Tooling / Fixture"), _
-        Array("cullet crush", "Collet Crush", "Tooling / Fixture"), _
-        Array("collet", "Collet Crush", "Tooling / Fixture"), _
-        Array("breakthrough", "Breakthrough", "Process / Method"), _
-        Array("break through", "Breakthrough", "Process / Method"), _
-        Array("splintered", "Splinter", "Process / Method"), _
-        Array("splinter", "Splinter", "Process / Method"), _
-        Array("cracked", "Crack", "Not Determined"), _
-        Array("crack", "Crack", "Not Determined"), _
-        Array("chipped", "Chip", "Not Determined"), _
-        Array("chip", "Chip", "Not Determined"), _
-        Array("plugs pulling out", "Plug Defect", "Process / Method"), _
-        Array("plug stuck", "Plug Defect", "Process / Method"), _
-        Array("bore plugs", "Plug Defect", "Process / Method"), _
-        Array("bore plug", "Plug Defect", "Process / Method"), _
-        Array("plug", "Plug Defect", "Process / Method"), _
-        Array("vp gaps", "VP Gap", "Process / Method"), _
-        Array("vp gap", "VP Gap", "Process / Method"), _
-        Array("tip gaps", "VP Gap", "Process / Method"), _
-        Array("tip gap", "VP Gap", "Process / Method"), _
-        Array("missing bushing", "Chip", "Tooling / Fixture"), _
-        Array("operator error", "Other", "Operator Error"), _
-        Array("tip problems", "Other", "Not Determined"), _
-        Array("bt at tip", "Breakthrough", "Process / Method"), _
-        Array("bt butt", "Breakthrough", "Process / Method"), _
-        Array("bt ", "Breakthrough", "Process / Method"), _
-        Array("uid", "Other", "Not Determined"), _
-        Array("uld", "Other", "Not Determined"), _
-        Array("not reported", "Unclassified", "Not Determined"), _
-        Array("n/a", "Unclassified", "Not Determined"))
+    ' Built one call at a time on purpose: VBA allows at most 24 line
+    ' continuations in a single statement, and a nested Array() literal for
+    ' this many rows blows straight past it and refuses to import.
+    Dim kmRow As Long
+    kmRow = 5
 
-    For i = LBound(km) To UBound(km)
-        ws.Cells(5 + i - LBound(km), 7).Value = km(i)(LBound(km(i)))
-        ws.Cells(5 + i - LBound(km), 8).Value = km(i)(LBound(km(i)) + 1)
-        ws.Cells(5 + i - LBound(km), 9).Value = km(i)(LBound(km(i)) + 2)
-    Next i
+    AddKeyword ws, kmRow, "collet crush", "Collet Crush", "Tooling / Fixture"
+    AddKeyword ws, kmRow, "cullet crush", "Collet Crush", "Tooling / Fixture"
+    AddKeyword ws, kmRow, "collet", "Collet Crush", "Tooling / Fixture"
+    AddKeyword ws, kmRow, "breakthrough", "Breakthrough", "Process / Method"
+    AddKeyword ws, kmRow, "break through", "Breakthrough", "Process / Method"
+    AddKeyword ws, kmRow, "bt at tip", "Breakthrough", "Process / Method"
+    AddKeyword ws, kmRow, "bt butt", "Breakthrough", "Process / Method"
+    AddKeyword ws, kmRow, "bt ", "Breakthrough", "Process / Method"
+    AddKeyword ws, kmRow, "splintered", "Splinter", "Process / Method"
+    AddKeyword ws, kmRow, "splinter", "Splinter", "Process / Method"
+    AddKeyword ws, kmRow, "cracked", "Crack", "Not Determined"
+    AddKeyword ws, kmRow, "crack", "Crack", "Not Determined"
+    AddKeyword ws, kmRow, "chipped", "Chip", "Not Determined"
+    AddKeyword ws, kmRow, "chip", "Chip", "Not Determined"
+    AddKeyword ws, kmRow, "plugs pulling out", "Plug Defect", "Process / Method"
+    AddKeyword ws, kmRow, "plug stuck", "Plug Defect", "Process / Method"
+    AddKeyword ws, kmRow, "bore plugs", "Plug Defect", "Process / Method"
+    AddKeyword ws, kmRow, "bore plug", "Plug Defect", "Process / Method"
+    AddKeyword ws, kmRow, "plug", "Plug Defect", "Process / Method"
+    AddKeyword ws, kmRow, "vp gaps", "VP Gap", "Process / Method"
+    AddKeyword ws, kmRow, "vp gap", "VP Gap", "Process / Method"
+    AddKeyword ws, kmRow, "tip gaps", "VP Gap", "Process / Method"
+    AddKeyword ws, kmRow, "tip gap", "VP Gap", "Process / Method"
+    AddKeyword ws, kmRow, "missing bushing", "Chip", "Tooling / Fixture"
+    AddKeyword ws, kmRow, "operator error", "Other", "Operator Error"
+    AddKeyword ws, kmRow, "tip problems", "Other", "Not Determined"
+    AddKeyword ws, kmRow, "uid", "Other", "Not Determined"
+    AddKeyword ws, kmRow, "uld", "Other", "Not Determined"
+    AddKeyword ws, kmRow, "not reported", "Unclassified", "Not Determined"
+    AddKeyword ws, kmRow, "n/a", "Unclassified", "Not Determined"
 
     ws.Columns("G:I").ColumnWidth = 22
 
@@ -580,3 +578,13 @@ Private Function BackfillKey(ByVal d As Date, ByVal sku As String, ByVal cart As
     BackfillKey = Format$(d, "yyyymmdd") & "|" & UCase$(Trim$(sku)) & "|" & _
                   UCase$(Trim$(cart)) & "|" & CStr(qty) & "|" & UCase$(Trim$(disp))
 End Function
+
+' Writes one classifier row and advances the cursor. Keeps the seeding code
+' free of line continuations.
+Private Sub AddKeyword(ByVal ws As Worksheet, ByRef r As Long, ByVal keyword As String, _
+                       ByVal defect As String, ByVal root As String)
+    ws.Cells(r, 7).Value = keyword
+    ws.Cells(r, 8).Value = defect
+    ws.Cells(r, 9).Value = root
+    r = r + 1
+End Sub

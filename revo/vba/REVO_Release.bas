@@ -66,7 +66,10 @@ End Type
 '==============================================================================
 Public Sub REVO_ReleaseCarts()
     Dim fm As FloorMap
-    Dim frm As frmReleaseDetails
+    ' Late-bound on purpose. The form is built by REVO_FormBuilder AFTER this
+    ' module is imported, so an early-bound 'As frmReleaseDetails' makes the
+    ' whole project fail to compile before the installer can ever create it.
+    Dim frm As Object
     Dim r As Long
     Dim WO As String, sku As String, cart As String
     Dim qty As Double, priorRel As Double, logRel As Double, remaining As Double
@@ -164,7 +167,8 @@ Public Sub REVO_ReleaseCarts()
         End If
 
         '=================== the form ======================================
-        Set frm = New frmReleaseDetails
+        Set frm = NewReleaseForm()
+        If frm Is Nothing Then GoTo Finish
         frm.Prime sku, cart, WO, CLng(remaining), CLng(qty), CLng(priorRel)
 
         REVO_Core.BeginModalDialog
@@ -575,7 +579,26 @@ Private Sub WriteQE(ByVal disp As String, ByVal qty As Double, ByVal d As Date, 
     REVO_Quality.WriteQualityEvent ev
 End Sub
 
-Private Function RejectSummaryText(ByVal frm As frmReleaseDetails) As String
+' Creates an instance of the release form by name.
+'
+' VBA.UserForms.Add resolves the form at run time, which is what lets every
+' REVO_* module compile before the form exists. If the form has not been built
+' yet this says so plainly instead of raising a bare 438.
+Private Function NewReleaseForm() As Object
+    On Error GoTo NoForm
+    Set NewReleaseForm = VBA.UserForms.Add("frmReleaseDetails")
+    Exit Function
+NoForm:
+    MsgBox "The release form has not been built yet." & vbCrLf & vbCrLf & _
+           "Run REVO_BuildReleaseForm (or REVO_Install) first." & vbCrLf & vbCrLf & _
+           "If that reports blocked access, tick File > Options > Trust Center >" & vbCrLf & _
+           "Trust Center Settings > Macro Settings >" & vbCrLf & _
+           "Trust access to the VBA project object model.", _
+           vbExclamation, "REVO Release"
+    Set NewReleaseForm = Nothing
+End Function
+
+Private Function RejectSummaryText(ByVal frm As Object) As String
     Dim s As String
     s = frm.RejectDefect
     If Len(frm.RejectLocation) > 0 And frm.RejectLocation <> "Not Specified" Then
