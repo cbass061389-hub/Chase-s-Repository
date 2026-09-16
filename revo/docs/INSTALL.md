@@ -121,6 +121,19 @@ no rebuild needed.
 Columns G:I are the classifier map used to code historical free text and to
 pre-select on the form. Longest keyword wins.
 
+## Before handing modules to anyone
+
+```
+python3 revo/tools/check_vba.py revo/vba
+```
+
+Catches, without needing Excel: statements over VBA's 24-continuation limit,
+identifiers colliding with reserved words (`cDate`, `dO`, `eNum` all do),
+unbalanced blocks, error handlers that read `Err` too late or fall off without
+`Resume`, and early-bound UserForm references. Every one of those shipped at
+least once before this existed. Exit code is non-zero on failure, so it can gate
+a commit.
+
 ## Troubleshooting
 
 **"Programmatic access to the VBA project is not trusted"** — step 1.

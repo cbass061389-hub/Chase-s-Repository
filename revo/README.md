@@ -79,6 +79,19 @@ every time it opens. Adding a defect type is a sheet edit.
 release hours, so "add night overtime" is never recommended for a release-side
 gap.
 
+## Checking the source
+
+```
+python3 revo/tools/check_vba.py revo/vba
+```
+
+Five classes of compile error that do not need Excel to find: the
+24-continuation statement limit, reserved-word collisions (VBA identifiers are
+case-insensitive, so `dO` is `Do` and `eNum` is `Enum`), block balance, error
+handlers that read `Err` after something cleared it or fall off without
+`Resume`, and early-bound UserForm references in standard modules. Run it before
+handing modules to anyone.
+
 ## Two things to know before you trust it
 
 **This code has never been executed.** It was written without Excel in the

@@ -181,15 +181,15 @@ Public Sub REVO_BuildReleaseForm(Optional ByVal codePath As String = "")
 
 BuildFailed:
     ' Capture Err FIRST - anything called below can clear it.
-    Dim eNum As Long, eDesc As String
-    eNum = Err.Number
-    eDesc = Err.Description
+    Dim errNum As Long, errDesc As String
+    errNum = Err.Number
+    errDesc = Err.Description
 
-    LastBuildError = "Error " & eNum & ": " & eDesc & "  (step: " & step_ & ")"
+    LastBuildError = "Error " & errNum & ": " & errDesc & "  (step: " & step_ & ")"
     REVO_Core.Audit "REVO_FormBuilder", "ERROR", FORM_NAME, LastBuildError
 
     MsgBox "Building the form failed." & vbCrLf & vbCrLf & _
-           "Error " & eNum & ": " & eDesc & vbCrLf & vbCrLf & _
+           "Error " & errNum & ": " & errDesc & vbCrLf & vbCrLf & _
            "Failed at: " & step_ & vbCrLf & vbCrLf & _
            "If this says programmatic access is not trusted, tick" & vbCrLf & _
            "File > Options > Trust Center > Trust Center Settings >" & vbCrLf & _

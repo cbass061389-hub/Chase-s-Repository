@@ -407,7 +407,7 @@ End Function
 Public Function BackfillQualityLog(Optional ByVal showResult As Boolean = True) As Long
     Dim wsRej As Worksheet, wsRew As Worksheet, wsQL As Worksheet
     Dim hdr As Long, lastR As Long, r As Long
-    Dim cDate As Long, cSku As Long, cWO As Long, cCart As Long, cQty As Long, cDesc As Long
+    Dim colDate As Long, cSku As Long, cWO As Long, cCart As Long, cQty As Long, cDesc As Long
     Dim seen As Object
     Dim ev As QualityEvent
     Dim added As Long, skipped As Long
@@ -443,17 +443,17 @@ Public Function BackfillQualityLog(Optional ByVal showResult As Boolean = True) 
     If Not wsRej Is Nothing Then
         hdr = REVO_Core.FindHeaderRow(wsRej, Array("Date", "SKU"), 10, 12)
         If hdr > 0 Then
-            cDate = REVO_Core.FindCol(wsRej, hdr, Array("Date"))
+            colDate = REVO_Core.FindCol(wsRej, hdr, Array("Date"))
             cSku = REVO_Core.FindCol(wsRej, hdr, Array("SKU"))
             cWO = REVO_Core.FindCol(wsRej, hdr, Array("WO#", "WO", "Work Order"))
             cCart = REVO_Core.FindCol(wsRej, hdr, Array("Cart"))
             cQty = REVO_Core.FindCol(wsRej, hdr, Array("Quantity", "Qty"))
             cDesc = REVO_Core.FindCol(wsRej, hdr, Array("Description", "Reason", "Reject Reason"))
 
-            If cDate > 0 And cSku > 0 And cQty > 0 Then
+            If colDate > 0 And cSku > 0 And cQty > 0 Then
                 lastR = REVO_Core.LastDataRow(wsRej, cSku, hdr)
                 For r = hdr + 1 To lastR
-                    dt = REVO_Core.SafeDate(wsRej.Cells(r, cDate).Value, 0)
+                    dt = REVO_Core.SafeDate(wsRej.Cells(r, colDate).Value, 0)
                     If dt > 0 Then
                         txt = IIf(cDesc > 0, REVO_Core.SafeS(wsRej.Cells(r, cDesc).Value), "")
                         ev.EventDate = dt
@@ -492,17 +492,17 @@ Public Function BackfillQualityLog(Optional ByVal showResult As Boolean = True) 
     If Not wsRew Is Nothing Then
         hdr = REVO_Core.FindHeaderRow(wsRew, Array("Date", "SKU"), 10, 12)
         If hdr > 0 Then
-            cDate = REVO_Core.FindCol(wsRew, hdr, Array("Date"))
+            colDate = REVO_Core.FindCol(wsRew, hdr, Array("Date"))
             cSku = REVO_Core.FindCol(wsRew, hdr, Array("SKU"))
             cWO = REVO_Core.FindCol(wsRew, hdr, Array("WO", "WO#", "Work Order"))
             cCart = REVO_Core.FindCol(wsRew, hdr, Array("Cart"))
             cQty = REVO_Core.FindCol(wsRew, hdr, Array("Qty", "Quantity"))
             cDesc = REVO_Core.FindCol(wsRew, hdr, Array("Status", "Reason", "Notes"))
 
-            If cDate > 0 And cSku > 0 And cQty > 0 Then
+            If colDate > 0 And cSku > 0 And cQty > 0 Then
                 lastR = REVO_Core.LastDataRow(wsRew, cSku, hdr)
                 For r = hdr + 1 To lastR
-                    dt = REVO_Core.SafeDate(wsRew.Cells(r, cDate).Value, 0)
+                    dt = REVO_Core.SafeDate(wsRew.Cells(r, colDate).Value, 0)
                     If dt > 0 Then
                         txt = IIf(cDesc > 0, REVO_Core.SafeS(wsRew.Cells(r, cDesc).Value), "")
                         ev.EventDate = dt

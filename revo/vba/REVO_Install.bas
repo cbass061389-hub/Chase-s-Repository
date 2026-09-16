@@ -101,15 +101,15 @@ Public Sub REVO_Install()
 Failed:
     ' Err FIRST. Calling anything here - ResetAppState included - can clear it,
     ' and reporting "Error 0" tells nobody anything.
-    Dim eNum As Long, eDesc As String
-    eNum = Err.Number
-    eDesc = Err.Description
+    Dim errNum As Long, errDesc As String
+    errNum = Err.Number
+    errDesc = Err.Description
 
     REVO_Core.ResetAppState
-    REVO_Core.Audit "REVO_Install", "ERROR", "Workbook", eNum & ": " & eDesc
+    REVO_Core.Audit "REVO_Install", "ERROR", "Workbook", errNum & ": " & errDesc
 
     MsgBox "Install failed." & vbCrLf & vbCrLf & _
-           "Error " & eNum & ": " & eDesc & vbCrLf & vbCrLf & _
+           "Error " & errNum & ": " & errDesc & vbCrLf & vbCrLf & _
            "Completed so far:" & vbCrLf & msg, vbCritical, "REVO Install"
     Resume CleanExit
 CleanExit:
@@ -130,12 +130,12 @@ Public Sub REVO_DailyUpdate()
     MsgBox "Cart velocity, quality dashboard and scorecard rebuilt.", vbInformation, "REVO"
     Exit Sub
 Failed:
-    Dim eNum As Long, eDesc As String
-    eNum = Err.Number
-    eDesc = Err.Description
+    Dim errNum As Long, errDesc As String
+    errNum = Err.Number
+    errDesc = Err.Description
     REVO_Core.ResetAppState
     MsgBox "Daily update failed." & vbCrLf & vbCrLf & _
-           "Error " & eNum & ": " & eDesc, vbExclamation, "REVO"
+           "Error " & errNum & ": " & errDesc, vbExclamation, "REVO"
     Resume CleanExit
 CleanExit:
 End Sub
@@ -232,12 +232,12 @@ Public Sub REVO_SelfTest(Optional ByVal interactive As Boolean = True)
     Exit Sub
 
 Failed:
-    Dim eNum As Long, eDesc As String
-    eNum = Err.Number
-    eDesc = Err.Description
+    Dim errNum As Long, errDesc As String
+    errNum = Err.Number
+    errDesc = Err.Description
     REVO_Core.ResetAppState
     MsgBox "Self test failed to run." & vbCrLf & vbCrLf & _
-           "Error " & eNum & ": " & eDesc, vbCritical, "REVO Self Test"
+           "Error " & errNum & ": " & errDesc, vbCritical, "REVO Self Test"
     Resume CleanExit
 CleanExit:
 End Sub
@@ -449,7 +449,7 @@ End Function
 Private Function CheckFloorLog(ByVal ws As Worksheet, ByVal r As Long, _
                                ByRef nFail As Long, ByRef nWarn As Long) As Long
     Dim wsL As Worksheet, hdr As Long, lastR As Long, i As Long
-    Dim cDate As Long
+    Dim colDate As Long
     Dim d As Object
     Dim dt As Date
 
@@ -469,11 +469,11 @@ Private Function CheckFloorLog(ByVal ws As Worksheet, ByVal r As Long, _
         Exit Function
     End If
 
-    cDate = REVO_Core.FindCol(wsL, hdr, Array("Snapshot Date"))
+    colDate = REVO_Core.FindCol(wsL, hdr, Array("Snapshot Date"))
     Set d = CreateObject("Scripting.Dictionary")
-    lastR = REVO_Core.LastDataRow(wsL, cDate, hdr)
+    lastR = REVO_Core.LastDataRow(wsL, colDate, hdr)
     For i = hdr + 1 To lastR
-        dt = REVO_Core.SafeDate(wsL.Cells(i, cDate).Value, 0)
+        dt = REVO_Core.SafeDate(wsL.Cells(i, colDate).Value, 0)
         If dt > 0 Then
             If Not d.exists(CLng(dt)) Then d.Add CLng(dt), 1
         End If

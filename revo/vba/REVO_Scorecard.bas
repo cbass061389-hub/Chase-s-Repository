@@ -191,14 +191,14 @@ Public Sub BuildScorecard(Optional ByVal interactive As Boolean = True)
     Exit Sub
 
 Failed:
-    Dim eNum As Long, eDesc As String
-    eNum = Err.Number
-    eDesc = Err.Description
+    Dim errNum As Long, errDesc As String
+    errNum = Err.Number
+    errDesc = Err.Description
     REVO_Core.ResetAppState
-    REVO_Core.Audit "REVO_Scorecard", "ERROR", SH_SCORECARD, eNum & ": " & eDesc
+    REVO_Core.Audit "REVO_Scorecard", "ERROR", SH_SCORECARD, errNum & ": " & errDesc
     If interactive Then
         MsgBox "Scorecard build failed." & vbCrLf & vbCrLf & _
-               "Error " & eNum & ": " & eDesc, vbExclamation, "Scorecard"
+               "Error " & errNum & ": " & errDesc, vbExclamation, "Scorecard"
     End If
     Resume CleanExit
 CleanExit:
@@ -676,14 +676,14 @@ Private Sub SumQuality(ByVal d1 As Date, ByVal d2 As Date, _
                        ByRef topDefect As String, ByRef topRoot As String, ByRef topOp As String)
     Dim ws As Worksheet, r As Long, lastR As Long
     Dim d As Date, disp As String, q As Double
-    Dim dD As Object, dR As Object, dO As Object
+    Dim dD As Object, dR As Object, dOp As Object
 
     Set ws = REVO_Core.GetSheet(SH_QUAL_LOG)
     If ws Is Nothing Then Exit Sub
 
     Set dD = CreateObject("Scripting.Dictionary"): dD.CompareMode = vbTextCompare
     Set dR = CreateObject("Scripting.Dictionary"): dR.CompareMode = vbTextCompare
-    Set dO = CreateObject("Scripting.Dictionary"): dO.CompareMode = vbTextCompare
+    Set dOp = CreateObject("Scripting.Dictionary"): dOp.CompareMode = vbTextCompare
 
     lastR = ws.Cells(ws.Rows.Count, QLC_EVENTID).End(xlUp).row
     For r = QL_HEADER_ROW + 1 To lastR
@@ -698,13 +698,13 @@ Private Sub SumQuality(ByVal d1 As Date, ByVal d2 As Date, _
             End Select
             Bump dD, REVO_Core.SafeS(ws.Cells(r, QLC_DEFECT).Value), q
             Bump dR, REVO_Core.SafeS(ws.Cells(r, QLC_ROOT).Value), q
-            Bump dO, REVO_Core.SafeS(ws.Cells(r, QLC_OP).Value), q
+            Bump dOp, REVO_Core.SafeS(ws.Cells(r, QLC_OP).Value), q
         End If
     Next r
 
     topDefect = TopKey(dD)
     topRoot = TopKey(dR)
-    topOp = TopKey(dO)
+    topOp = TopKey(dOp)
 End Sub
 
 Private Sub Bump(ByVal d As Object, ByVal k As String, ByVal v As Double)

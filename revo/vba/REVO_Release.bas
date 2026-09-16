@@ -275,11 +275,11 @@ Finish:
 
 FailFast:
     ' Err FIRST, before Unload or ResetAppState can clear it.
-    Dim eNum As Long, eDesc As String, msg As String
-    eNum = Err.Number
-    eDesc = Err.Description
+    Dim errNum As Long, errDesc As String, msg As String
+    errNum = Err.Number
+    errDesc = Err.Description
     msg = "REVO_ReleaseCarts failed at row " & r & "." & vbCrLf & vbCrLf & _
-          "Error " & eNum & ": " & eDesc
+          "Error " & errNum & ": " & errDesc
 
     On Error Resume Next
     If Not frm Is Nothing Then Unload frm

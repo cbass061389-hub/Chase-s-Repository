@@ -195,14 +195,14 @@ Public Sub REVO_UpdateCartVelocity(Optional ByVal silent As Boolean = False)
     Exit Sub
 
 Failed:
-    Dim eNum As Long, eDesc As String
-    eNum = Err.Number
-    eDesc = Err.Description
+    Dim errNum As Long, errDesc As String
+    errNum = Err.Number
+    errDesc = Err.Description
     REVO_Core.ResetAppState
-    REVO_Core.Audit "REVO_CartVelocity", "ERROR", SH_VELOCITY, eNum & ": " & eDesc
+    REVO_Core.Audit "REVO_CartVelocity", "ERROR", SH_VELOCITY, errNum & ": " & errDesc
     If Not silent Then
         MsgBox "Cart velocity update failed." & vbCrLf & vbCrLf & _
-               "Error " & eNum & ": " & eDesc, vbExclamation, "Cart Velocity"
+               "Error " & errNum & ": " & errDesc, vbExclamation, "Cart Velocity"
     End If
     Resume CleanExit
 CleanExit:
@@ -216,7 +216,7 @@ End Sub
 '==============================================================================
 Private Function MeasureGate(ByVal flagCaption As String) As GateResult
     Dim ws As Worksheet, hdr As Long, lastR As Long, r As Long
-    Dim cDate As Long, cCart As Long, cFlag As Long
+    Dim colDate As Long, cCart As Long, cFlag As Long
     Dim snaps As Object, cartState As Object
     Dim res As GateResult
     Dim rates() As Double, n As Long
@@ -232,17 +232,17 @@ Private Function MeasureGate(ByVal flagCaption As String) As GateResult
     hdr = REVO_Core.FindHeaderRow(ws, Array("Snapshot Date", "Cart"), 10, 20)
     If hdr = 0 Then MeasureGate = res: Exit Function
 
-    cDate = REVO_Core.FindCol(ws, hdr, Array("Snapshot Date"))
+    colDate = REVO_Core.FindCol(ws, hdr, Array("Snapshot Date"))
     cCart = REVO_Core.FindCol(ws, hdr, Array("Cart"))
     cFlag = REVO_Core.FindCol(ws, hdr, Array(flagCaption))
-    If cDate = 0 Or cCart = 0 Or cFlag = 0 Then MeasureGate = res: Exit Function
+    If colDate = 0 Or cCart = 0 Or cFlag = 0 Then MeasureGate = res: Exit Function
 
     ' snapshot date -> dictionary of cart -> flag
     Set snaps = CreateObject("Scripting.Dictionary")
     lastR = REVO_Core.LastDataRow(ws, cCart, hdr)
 
     For r = hdr + 1 To lastR
-        d1 = REVO_Core.SafeDate(ws.Cells(r, cDate).Value, 0)
+        d1 = REVO_Core.SafeDate(ws.Cells(r, colDate).Value, 0)
         cartKey = UCase$(REVO_Core.SafeS(ws.Cells(r, cCart).Value))
         If d1 > 0 And Len(cartKey) > 0 Then
             If Not snaps.exists(CLng(d1)) Then
@@ -304,7 +304,7 @@ End Function
 '==============================================================================
 Private Function MeasureFamilies(ByRef fams As Object) As Long
     Dim ws As Worksheet, hdr As Long, lastR As Long, r As Long
-    Dim cDate As Long, cCart As Long, cSku As Long, cOps As Long, cWO As Long
+    Dim colDate As Long, cCart As Long, cSku As Long, cOps As Long, cWO As Long
     Dim hist As Object
     Dim key As String, cartKey As String
     Dim d As Date, ops As Double
@@ -316,19 +316,19 @@ Private Function MeasureFamilies(ByRef fams As Object) As Long
     hdr = REVO_Core.FindHeaderRow(ws, Array("Snapshot Date", "Cart"), 10, 20)
     If hdr = 0 Then Exit Function
 
-    cDate = REVO_Core.FindCol(ws, hdr, Array("Snapshot Date"))
+    colDate = REVO_Core.FindCol(ws, hdr, Array("Snapshot Date"))
     cCart = REVO_Core.FindCol(ws, hdr, Array("Cart"))
     cSku = REVO_Core.FindCol(ws, hdr, Array("SKU"))
     cOps = REVO_Core.FindCol(ws, hdr, Array("Ops Done"))
     cWO = REVO_Core.FindCol(ws, hdr, Array("WO", "WO#"))
-    If cDate = 0 Or cCart = 0 Or cSku = 0 Or cOps = 0 Then Exit Function
+    If colDate = 0 Or cCart = 0 Or cSku = 0 Or cOps = 0 Then Exit Function
 
     ' cart|WO -> collection of "date|opsDone|sku"
     Set hist = CreateObject("Scripting.Dictionary")
     lastR = REVO_Core.LastDataRow(ws, cCart, hdr)
 
     For r = hdr + 1 To lastR
-        d = REVO_Core.SafeDate(ws.Cells(r, cDate).Value, 0)
+        d = REVO_Core.SafeDate(ws.Cells(r, colDate).Value, 0)
         cartKey = UCase$(REVO_Core.SafeS(ws.Cells(r, cCart).Value))
         If d > 0 And Len(cartKey) > 0 Then
             key = cartKey & "|" & UCase$(IIf(cWO > 0, REVO_Core.SafeS(ws.Cells(r, cWO).Value), ""))

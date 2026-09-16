@@ -404,10 +404,10 @@ End Sub
 ' resets Err.Number to 0 - that is exactly how a real failure got reported as
 ' "Error 0". The error is captured and put back before returning.
 Public Sub ResetAppState()
-    Dim eNum As Long, eDesc As String, eSrc As String
-    eNum = Err.Number
-    eDesc = Err.Description
-    eSrc = Err.source
+    Dim errNum As Long, errDesc As String, errSrc As String
+    errNum = Err.Number
+    errDesc = Err.Description
+    errSrc = Err.source
 
     mDepth = 0
     On Error Resume Next
@@ -416,10 +416,10 @@ Public Sub ResetAppState()
     Application.Calculation = xlCalculationAutomatic
     On Error GoTo 0
 
-    If eNum <> 0 Then
-        Err.Number = eNum
-        Err.Description = eDesc
-        Err.source = eSrc
+    If errNum <> 0 Then
+        Err.Number = errNum
+        Err.Description = errDesc
+        Err.source = errSrc
     End If
 End Sub
 
@@ -515,7 +515,7 @@ End Function
 '==============================================================================
 Public Function ReleasedBetween(ByVal d1 As Date, ByVal d2 As Date) As Double
     Dim ws As Worksheet, hdr As Long, lastR As Long, r As Long
-    Dim cDate As Long, cQty As Long, cRecall As Long
+    Dim colDate As Long, cQty As Long, cRecall As Long
     Dim d As Date, t As Double
 
     Set ws = GetSheet(SH_RELEASE_LOG)
@@ -524,14 +524,14 @@ Public Function ReleasedBetween(ByVal d1 As Date, ByVal d2 As Date) As Double
     hdr = FindHeaderRow(ws, Array("Qty Released"), 10, 15)
     If hdr = 0 Then Exit Function
 
-    cDate = FindCol(ws, hdr, Array("Date"))
+    colDate = FindCol(ws, hdr, Array("Date"))
     cQty = FindCol(ws, hdr, Array("Qty Released"))
     cRecall = FindCol(ws, hdr, Array("Recalled"))
-    If cDate = 0 Or cQty = 0 Then Exit Function
+    If colDate = 0 Or cQty = 0 Then Exit Function
 
-    lastR = LastDataRow(ws, cDate, hdr)
+    lastR = LastDataRow(ws, colDate, hdr)
     For r = hdr + 1 To lastR
-        d = SafeDate(ws.Cells(r, cDate).Value, 0)
+        d = SafeDate(ws.Cells(r, colDate).Value, 0)
         If d >= d1 And d <= d2 Then
             If cRecall = 0 Or Not Boolish(ws.Cells(r, cRecall).Value) Then
                 t = t + SafeD(ws.Cells(r, cQty).Value)
