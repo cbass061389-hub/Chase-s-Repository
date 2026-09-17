@@ -138,6 +138,25 @@ a commit.
 
 **"Programmatic access to the VBA project is not trusted"** — step 1.
 
+**Error 75 "Could not find the specified object" when creating the UserForm** —
+Excel is refusing to write to the VBA project. On a OneDrive or SharePoint
+workbook this is nearly always **AutoSave**. Fix, in order of effort:
+
+1. **Turn AutoSave off** (toggle, top left of the Excel window) and re-run
+   `REVO_BuildReleaseForm`. The builder also tries this itself, but doing it
+   first is cleaner.
+2. **Save a copy locally** — `C:\Temp\Revo_Production.xlsm` — open that, run
+   the builder there, then save back. Programmatic VBA project changes are far
+   more reliable on a local file.
+3. **Build the form by hand** using
+   [`MANUAL_FORM_BUILD.md`](MANUAL_FORM_BUILD.md). About ten minutes, and it
+   always works because you are in the VBE directly rather than asking Excel to
+   automate it.
+
+Everything except the form installs and works regardless — the quality
+taxonomy, the backfill, the dashboards, the scorecard and the reconciliation
+tools do not touch the VBA project.
+
 **Form builder cannot find the code file** — it searches, in order: any path you
 pass it, the workbook's own folder, `revo\vba` beneath it, Downloads, Desktop,
 the current directory, and a copy cached inside the workbook. Failing all of

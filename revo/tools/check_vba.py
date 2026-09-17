@@ -188,7 +188,12 @@ def check_blocks_and_handlers(path, text, fail):
             j += 1
         segment = '\n'.join(seg)
         first = next((x for x in seg if x and not x.startswith("'")), '')
-        if 'Err.' in segment and 'Err.' not in first and not first.startswith('Dim'):
+        # Only a READ of Err matters. Err.Clear and Err.Raise write to it, and a
+        # handler that merely clears the error has nothing to lose by doing so
+        # late.
+        reads_err = re.search(r'Err\.(Number|Description|Source)\b', segment) is not None
+        first_touches_err = re.search(r'Err\.(Number|Description|Source)\b', first) is not None
+        if reads_err and not first_touches_err and not first.startswith('Dim'):
             fail(f"{path}:{i+1}: handler '{label}' reads Err after calling something "
                  f"- anything with 'On Error GoTo 0' in it clears Err first")
         if not re.search(r'\bResume\b', segment):

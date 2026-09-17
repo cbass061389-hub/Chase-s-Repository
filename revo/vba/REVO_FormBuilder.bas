@@ -29,6 +29,9 @@ Private Const CODE_FILE        As String = "frmReleaseDetails.code.vb"
 ' Set as the build walks, so a failure names the step rather than a bare number.
 Private step_ As String
 
+' What the component creator had to do, or why it could not.
+Private addNote As String
+
 ' Read by REVO_Install so it can report a build failure instead of swallowing it.
 Public LastBuildError As String
 
@@ -80,7 +83,12 @@ Public Sub REVO_BuildReleaseForm(Optional ByVal codePath As String = "")
     On Error GoTo BuildFailed
 
     step_ = "creating the UserForm component"
-    Set vbc = vbp.VBComponents.Add(VB_EXT_CT_MSFORM)
+    Set vbc = AddFormComponent(vbp)
+    If vbc Is Nothing Then
+        Err.Raise vbObjectError + 514, "REVO_FormBuilder", _
+                  "Excel refused to create the UserForm component. " & _
+                  "Last attempt reported: " & addNote
+    End If
     vbc.name = FORM_NAME
 
     ' Caption / Width / Height go through the VBComponent Properties collection,
@@ -176,6 +184,7 @@ Public Sub REVO_BuildReleaseForm(Optional ByVal codePath As String = "")
 
     '========================= code =========================================
     step_ = "injecting the form code"
+    REVO_Core.Audit "REVO_FormBuilder", "COMPONENT", FORM_NAME, addNote
     With vbc.CodeModule
         If .CountOfLines > 0 Then .DeleteLines 1, .CountOfLines
         .AddFromString code
@@ -206,10 +215,7 @@ BuildFailed:
     MsgBox "Building the form failed." & vbCrLf & vbCrLf & _
            "Error " & errNum & ": " & errDesc & vbCrLf & vbCrLf & _
            "Failed at: " & step_ & vbCrLf & vbCrLf & _
-           "If this says programmatic access is not trusted, tick" & vbCrLf & _
-           "File > Options > Trust Center > Trust Center Settings >" & vbCrLf & _
-           "Macro Settings > Trust access to the VBA project object model.", _
-           vbCritical, "Form Builder"
+           BuildAdvice(eNum), vbCritical, "Form Builder"
 
     ' Resume, not a bare End Sub. Falling off an active handler leaves the error
     ' pending and it surfaces in the CALLER's handler with Err already cleared -
@@ -217,6 +223,125 @@ BuildFailed:
     Resume CleanExit
 CleanExit:
 End Sub
+
+' Creating a UserForm component is the single most environment-sensitive step
+' in this module. Error 75 here is not a code fault - it is Excel refusing to
+' write to the VBA project, and on a OneDrive / SharePoint workbook the usual
+' reason is AutoSave holding the file. Three attempts, cheapest first.
+Private Function AddFormComponent(ByVal vbp As Object) As Object
+    Dim vbc As Object
+    Dim savedDir As String
+    Dim autoSaveWas As Boolean, autoSaveTouched As Boolean
+
+    '--- attempt 1: straight in --------------------------------------------
+    On Error Resume Next
+    Set vbc = vbp.VBComponents.Add(VB_EXT_CT_MSFORM)
+    If Not vbc Is Nothing Then
+        Err.Clear
+        On Error GoTo 0
+        addNote = "created directly"
+        Set AddFormComponent = vbc
+        Exit Function
+    End If
+    addNote = "direct Add failed with error " & Err.Number & " (" & Err.Description & ")"
+    Err.Clear
+
+    '--- attempt 2: turn off AutoSave, give the VBE a writable working dir ---
+    ' AutoSave keeps a SharePoint-hosted workbook checked out in a way that
+    ' blocks VBProject writes, and the VBE needs a local directory it can use.
+    autoSaveWas = False
+    If ThisWorkbook.AutoSaveOn Then
+        autoSaveWas = True
+        ThisWorkbook.AutoSaveOn = False
+        autoSaveTouched = True
+    End If
+    Err.Clear
+
+    savedDir = CurDir$
+    ChDir Environ$("TEMP")
+    Err.Clear
+
+    Set vbc = vbp.VBComponents.Add(VB_EXT_CT_MSFORM)
+    If Not vbc Is Nothing Then
+        addNote = "created after turning AutoSave off" & _
+                  IIf(autoSaveTouched, " (AutoSave was on and is now off)", "")
+        GoTo Restore
+    End If
+    addNote = addNote & "; after AutoSave off: error " & Err.Number
+    Err.Clear
+
+    '--- attempt 3: import a bare .frm, then populate it --------------------
+    ' Import takes a different path through the VBE than Add and often
+    ' succeeds where Add will not.
+    Set vbc = ImportBareForm(vbp)
+    If Not vbc Is Nothing Then
+        addNote = "created by importing a bare .frm"
+    Else
+        addNote = addNote & "; bare .frm import also failed"
+    End If
+
+Restore:
+    On Error Resume Next
+    If Len(savedDir) > 0 Then ChDir savedDir
+    ' AutoSave is deliberately left OFF. Turning it back on mid-build would
+    ' re-take the lock before the form is finished being written.
+    Err.Clear
+    On Error GoTo 0
+
+    Set AddFormComponent = vbc
+End Function
+
+' Writes a minimal UserForm definition to TEMP and imports it. No controls and
+' no .frx - the designer adds the controls afterwards, exactly as it would for
+' a form created with Add.
+Private Function ImportBareForm(ByVal vbp As Object) As Object
+    Dim p As String, ff As Integer
+    Dim vbc As Object
+
+    On Error GoTo Fail
+
+    p = Environ$("TEMP")
+    If Len(p) = 0 Then p = ThisWorkbook.path
+    If Len(p) = 0 Then Exit Function
+    p = Joined(p, "REVO_frmReleaseDetails_" & Format$(Now, "hhnnss") & ".frm")
+
+    ff = FreeFile
+    Open p For Output As #ff
+    Print #ff, "VERSION 5.00"
+    Print #ff, "Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} " & FORM_NAME
+    Print #ff, "   Caption         =   ""Release cart"""
+    Print #ff, "   ClientHeight    =   7200"
+    Print #ff, "   ClientLeft      =   45"
+    Print #ff, "   ClientTop       =   375"
+    Print #ff, "   ClientWidth     =   10260"
+    Print #ff, "   StartUpPosition =   1  'CenterOwner"
+    Print #ff, "End"
+    Print #ff, "Attribute VB_Name = """ & FORM_NAME & """"
+    Print #ff, "Attribute VB_GlobalNameSpace = False"
+    Print #ff, "Attribute VB_Creatable = False"
+    Print #ff, "Attribute VB_PredeclaredId = True"
+    Print #ff, "Attribute VB_Exposed = False"
+    Close #ff
+
+    Set vbc = vbp.VBComponents.Import(p)
+
+    On Error Resume Next
+    Kill p
+    Err.Clear
+    On Error GoTo 0
+
+    Set ImportBareForm = vbc
+    Exit Function
+
+Fail:
+    On Error Resume Next
+    Close #ff
+    Err.Clear
+    On Error GoTo 0
+    Set ImportBareForm = Nothing
+    Resume Done
+Done:
+End Function
 
 '==============================================================================
 ' CONTROL HELPERS
@@ -386,6 +511,28 @@ End Function
 
 ' Every place the form code plausibly is, cheapest first. Nothing here can
 ' raise; each candidate is probed through FileExists.
+' Error-specific advice. A generic "check Trust Center" is useless when the
+' real problem is AutoSave on a SharePoint file.
+Private Function BuildAdvice(ByVal errNum As Long) As String
+    Select Case errNum
+        Case 75, 76, 70
+            BuildAdvice = "Excel would not let the VBA project be written to." & vbCrLf & vbCrLf & _
+                "On a OneDrive or SharePoint workbook this is almost always AutoSave." & vbCrLf & vbCrLf & _
+                "Try, in order:" & vbCrLf & _
+                "  1. Turn AutoSave OFF (toggle, top left) and run this again." & vbCrLf & _
+                "  2. Save a copy to a local folder - C:\Temp - open that, run it there." & vbCrLf & _
+                "  3. Build the form by hand: revo\docs\MANUAL_FORM_BUILD.md, about ten" & vbCrLf & _
+                "     minutes, and it always works because you are in the VBE directly." & vbCrLf & vbCrLf & _
+                "Everything else in the system is already installed and working -" & vbCrLf & _
+                "only the release form needs this."
+        Case Else
+            BuildAdvice = "If this says programmatic access is not trusted, tick" & vbCrLf & _
+                "File > Options > Trust Center > Trust Center Settings >" & vbCrLf & _
+                "Macro Settings > Trust access to the VBA project object model." & vbCrLf & vbCrLf & _
+                "If it persists, revo\docs\MANUAL_FORM_BUILD.md builds the form by hand."
+    End Select
+End Function
+
 Private Function ResolveCodePath(ByVal supplied As String) As String
     Dim fd As Object
     Dim wbPath As String, userPath As String
