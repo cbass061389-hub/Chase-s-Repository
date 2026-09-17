@@ -551,8 +551,10 @@ Private Function CheckForm(ByVal ws As Worksheet, ByVal r As Long, _
     Set vbc = ThisWorkbook.VBProject.VBComponents("frmReleaseDetails")
 
     needed = Array("txtCartQtyRelease", "txtRework", "txtBGrade", "txtReject", _
-                   "cboReworkDefect", "cboReworkRoot", "cboRejectDefect", "cboRejectRoot", _
-                   "cboBGradeDefect", "lblToInventory", "btnSubmit", "btnCancel")
+                   "cboDisposition", "txtLineQty", "cboDefect", "cboLocation", _
+                   "cboOp", "cboRoot", "cboAction", "txtLineNotes", _
+                   "btnAddLine", "btnRemoveLine", "lstLines", _
+                   "lblToInventory", "lblAllocation", "btnSubmit", "btnCancel")
 
     For i = LBound(needed) To UBound(needed)
         found = False

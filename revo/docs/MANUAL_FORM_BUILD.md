@@ -13,7 +13,7 @@ About ten minutes.
 |---|---|
 | `(Name)` | `frmReleaseDetails` |
 | `Caption` | `Release cart` |
-| `Width` | `664` |
+| `Width` | `684` |
 | `Height` | `500` |
 
 ## 2. Add the controls
@@ -53,68 +53,60 @@ them by name. Positions are cosmetic; get them roughly right.
 
 | Name | Type | Caption | Left | Top | Width | Height |
 |---|---|---|---|---|---|---|
-| `lblHdr9` | Label | `Rework` | 12 | 100 | 46 | 16 |
-| `txtRework` | TextBox | | 60 | 98 | 46 | 20 |
-| `lblHdr10` | Label | `B Grade` | 128 | 100 | 50 | 16 |
-| `txtBGrade` | TextBox | | 180 | 98 | 46 | 20 |
-| `lblHdr11` | Label | `Reject` | 248 | 100 | 40 | 16 |
-| `txtReject` | TextBox | | 290 | 98 | 46 | 20 |
+| `lblHdr9` | Label | `Rework` | 12 | 94 | 46 | 16 |
+| `txtRework` | TextBox | | 60 | 92 | 46 | 20 |
+| `lblHdr10` | Label | `B Grade` | 128 | 94 | 50 | 16 |
+| `txtBGrade` | TextBox | | 180 | 92 | 46 | 20 |
+| `lblHdr11` | Label | `Reject` | 248 | 94 | 40 | 16 |
+| `txtReject` | TextBox | | 290 | 92 | 46 | 20 |
+| `lblAllocation` | Label | | 348 | 94 | 314 | 16 |
 
-### Frame `fraRework` — caption `Rework detail`, at (8, 122), 644 × 92
+### Frame `fraDetail` — at (8, 118), 656 × 118
 
-Positions below are **relative to the frame**.
-
-| Name | Type | Caption | Left | Top | Width | Height |
-|---|---|---|---|---|---|---|
-| `lblRwD` | Label | `Defect` | 8 | 16 | 44 | 14 |
-| `cboReworkDefect` | ComboBox | | 54 | 14 | 128 | 18 |
-| `lblRwL` | Label | `Location` | 190 | 16 | 48 | 14 |
-| `cboReworkLocation` | ComboBox | | 240 | 14 | 104 | 18 |
-| `lblRwO` | Label | `At op` | 352 | 16 | 32 | 14 |
-| `cboReworkOp` | ComboBox | | 386 | 14 | 68 | 18 |
-| `lblRwR` | Label | `Root cause` | 8 | 40 | 60 | 14 |
-| `cboReworkRoot` | ComboBox | | 70 | 38 | 128 | 18 |
-| `lblRwA` | Label | `Action` | 206 | 40 | 40 | 14 |
-| `cboReworkAction` | ComboBox | | 248 | 38 | 128 | 18 |
-| `lblRwN` | Label | `Notes` | 8 | 64 | 40 | 14 |
-| `txtReworkNotes` | TextBox | | 54 | 62 | 574 | 18 |
-
-### Frame `fraBGrade` — caption `B grade detail`, at (8, 220), 644 × 70
+Caption: `Quality detail  -  one line per cause. Split a disposition across as
+many causes as it needs.` Positions are **relative to the frame**.
 
 | Name | Type | Caption | Left | Top | Width | Height |
 |---|---|---|---|---|---|---|
-| `lblBgD` | Label | `Defect` | 8 | 16 | 44 | 14 |
-| `cboBGradeDefect` | ComboBox | | 54 | 14 | 128 | 18 |
-| `lblBgL` | Label | `Location` | 190 | 16 | 48 | 14 |
-| `cboBGradeLocation` | ComboBox | | 240 | 14 | 104 | 18 |
-| `lblBgR` | Label | `Root cause` | 352 | 16 | 60 | 14 |
-| `cboBGradeRoot` | ComboBox | | 414 | 14 | 128 | 18 |
-| `lblBgN` | Label | `Notes` | 8 | 40 | 40 | 14 |
-| `txtBGradeNotes` | TextBox | | 54 | 38 | 574 | 18 |
+| `lblEnD` | Label | `Disposition` | 8 | 18 | 62 | 14 |
+| `cboDisposition` | ComboBox | | 72 | 16 | 86 | 18 |
+| `lblEnQ` | Label | `Qty` | 168 | 18 | 22 | 14 |
+| `txtLineQty` | TextBox | | 192 | 16 | 44 | 20 |
+| `lblEnDef` | Label | `Defect` | 250 | 18 | 40 | 14 |
+| `cboDefect` | ComboBox | | 292 | 16 | 126 | 18 |
+| `lblEnL` | Label | `Location` | 428 | 18 | 48 | 14 |
+| `cboLocation` | ComboBox | | 478 | 16 | 104 | 18 |
+| `lblEnO` | Label | `At op` | 8 | 44 | 34 | 14 |
+| `cboOp` | ComboBox | | 72 | 42 | 86 | 18 |
+| `lblEnR` | Label | `Root cause` | 168 | 44 | 62 | 14 |
+| `cboRoot` | ComboBox | | 232 | 42 | 136 | 18 |
+| `lblEnA` | Label | `Action` | 380 | 44 | 40 | 14 |
+| `cboAction` | ComboBox | | 424 | 42 | 158 | 18 |
+| `lblEnN` | Label | `Notes` | 8 | 70 | 34 | 14 |
+| `txtLineNotes` | TextBox | | 72 | 68 | 510 | 18 |
+| `btnAddLine` | CommandButton | `Add line` | 8 | 92 | 86 | 22 |
+| `btnRemoveLine` | CommandButton | `Remove selected` | 100 | 92 | 110 | 22 |
+| `lblEnHint` | Label | (see below) | 220 | 96 | 420 | 14 |
 
-### Frame `fraReject` — caption `Reject detail`, at (8, 296), 644 × 92
+`lblEnHint` caption: `Example: reject 10 = 3 collet crush, 5 chip at butt,
+2 breakthrough. Add each as its own line.`
+
+### The lines list — on the form, not in a frame
 
 | Name | Type | Caption | Left | Top | Width | Height |
 |---|---|---|---|---|---|---|
-| `lblRjD` | Label | `Defect` | 8 | 16 | 44 | 14 |
-| `cboRejectDefect` | ComboBox | | 54 | 14 | 128 | 18 |
-| `lblRjL` | Label | `Location` | 190 | 16 | 48 | 14 |
-| `cboRejectLocation` | ComboBox | | 240 | 14 | 104 | 18 |
-| `lblRjO` | Label | `At op` | 352 | 16 | 32 | 14 |
-| `cboRejectOp` | ComboBox | | 386 | 14 | 68 | 18 |
-| `lblRjR` | Label | `Root cause` | 8 | 40 | 60 | 14 |
-| `cboRejectRoot` | ComboBox | | 70 | 38 | 128 | 18 |
-| `lblRjA` | Label | `Action` | 206 | 40 | 40 | 14 |
-| `cboRejectAction` | ComboBox | | 248 | 38 | 128 | 18 |
-| `lblRjN` | Label | `Notes` | 8 | 64 | 40 | 14 |
-| `txtRejectNotes` | TextBox | | 54 | 62 | 574 | 18 |
+| `lblHdrList` | Label | `Lines recorded for this release` | 12 | 244 | 200 | 14 |
+| `lstLines` | ListBox | | 8 | 260 | 656 | 150 |
+
+On `lstLines` set `ColumnCount` = **7** and `ColumnWidths` =
+`58 pt;30 pt;90 pt;62 pt;38 pt;96 pt;120 pt`.
 
 ### Buttons — on the form, not in a frame
 
 | Name | Type | Caption | Left | Top | Width | Height | Other |
 |---|---|---|---|---|---|---|---|
-| `btnSubmit` | CommandButton | `Submit release` | 430 | 400 | 108 | 28 | `Default` = True |
-| `btnCancel` | CommandButton | `Cancel` | 548 | 400 | 100 | 28 | `Cancel` = True |
+| `btnSubmit` | CommandButton | `Submit release` | 446 | 420 | 108 | 28 | `Default` = True |
+| `btnCancel` | CommandButton | `Cancel` | 564 | 420 | 100 | 28 | `Cancel` = True |
 
 ## 3. Paste the code
 

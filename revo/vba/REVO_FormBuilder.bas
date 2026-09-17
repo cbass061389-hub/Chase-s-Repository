@@ -88,7 +88,7 @@ Public Sub REVO_BuildReleaseForm(Optional ByVal codePath As String = "")
     ' failure here must not cost us the form.
     On Error Resume Next
     vbc.Properties("Caption") = "Release cart"
-    vbc.Properties("Width") = 664
+    vbc.Properties("Width") = 684
     vbc.Properties("Height") = 500
     Err.Clear
     On Error GoTo BuildFailed
@@ -112,76 +112,67 @@ Public Sub REVO_BuildReleaseForm(Optional ByVal codePath As String = "")
     AddLabel dsn, "lblHdr6", "Remaining", 290, 26, 60, 14, True
     AddLabel dsn, "lblRemaining", "", 352, 26, 50, 14, False
 
-
     '========================= release quantity =============================
     step_ = "adding the release quantity controls"
-    AddLabel dsn, "lblHdr7", "Release qty this pass", 12, 58, 122, 16, True
-    AddTextBox dsn, "txtCartQtyRelease", 138, 56, 56, 20
+    AddLabel dsn, "lblHdr7", "Release qty this pass", 12, 52, 122, 16, True
+    AddTextBox dsn, "txtCartQtyRelease", 138, 50, 56, 20
 
-    AddLabel dsn, "lblHdr8", "To inventory", 216, 58, 72, 16, True
-    AddBigLabel dsn, "lblToInventory", "0", 292, 54, 66, 22
+    AddLabel dsn, "lblHdr8", "To inventory", 216, 52, 72, 16, True
+    AddBigLabel dsn, "lblToInventory", "0", 292, 48, 66, 22
 
-    AddLabel dsn, "lblAfterThisPass", "", 372, 58, 274, 16, False
-    AddLabel dsn, "lblWarn", "", 12, 78, 634, 14, False
+    AddLabel dsn, "lblAfterThisPass", "", 372, 52, 290, 16, False
+    AddLabel dsn, "lblWarn", "", 12, 72, 650, 14, False
 
     '========================= disposition quantities =======================
     step_ = "adding the disposition quantity controls"
-    AddLabel dsn, "lblHdr9", "Rework", 12, 100, 46, 16, True
-    AddTextBox dsn, "txtRework", 60, 98, 46, 20
-    AddLabel dsn, "lblHdr10", "B Grade", 128, 100, 50, 16, True
-    AddTextBox dsn, "txtBGrade", 180, 98, 46, 20
-    AddLabel dsn, "lblHdr11", "Reject", 248, 100, 40, 16, True
-    AddTextBox dsn, "txtReject", 290, 98, 46, 20
-    AddLabel dsn, "lblHdr12", "Anything non-zero must be coded below.", 350, 100, 296, 16, False
+    AddLabel dsn, "lblHdr9", "Rework", 12, 94, 46, 16, True
+    AddTextBox dsn, "txtRework", 60, 92, 46, 20
+    AddLabel dsn, "lblHdr10", "B Grade", 128, 94, 50, 16, True
+    AddTextBox dsn, "txtBGrade", 180, 92, 46, 20
+    AddLabel dsn, "lblHdr11", "Reject", 248, 94, 40, 16, True
+    AddTextBox dsn, "txtReject", 290, 92, 46, 20
+    AddLabel dsn, "lblAllocation", "", 348, 94, 314, 16, True
 
-    '========================= rework detail ================================
-    step_ = "adding the rework panel"
-    Set fra = AddFrame(dsn, "fraRework", "Rework detail", 8, 122, 644, 92)
-    AddLabel fra, "lblRwD", "Defect", 8, 16, 44, 14, True
-    AddCombo fra, "cboReworkDefect", 54, 14, 128, 18
-    AddLabel fra, "lblRwL", "Location", 190, 16, 48, 14, True
-    AddCombo fra, "cboReworkLocation", 240, 14, 104, 18
-    AddLabel fra, "lblRwO", "At op", 352, 16, 32, 14, True
-    AddCombo fra, "cboReworkOp", 386, 14, 68, 18
-    AddLabel fra, "lblRwR", "Root cause", 8, 40, 60, 14, True
-    AddCombo fra, "cboReworkRoot", 70, 38, 128, 18
-    AddLabel fra, "lblRwA", "Action", 206, 40, 40, 14, True
-    AddCombo fra, "cboReworkAction", 248, 38, 128, 18
-    AddLabel fra, "lblRwN", "Notes", 8, 64, 40, 14, True
-    AddTextBox fra, "txtReworkNotes", 54, 62, 574, 18
+    '========================= quality detail entry =========================
+    step_ = "adding the quality detail entry row"
+    Set fra = AddFrame(dsn, "fraDetail", _
+        "Quality detail  -  one line per cause. Split a disposition across as many causes as it needs.", _
+        8, 118, 656, 118)
 
-    '========================= B grade detail ===============================
-    step_ = "adding the B grade panel"
-    Set fra = AddFrame(dsn, "fraBGrade", "B grade detail", 8, 220, 644, 70)
-    AddLabel fra, "lblBgD", "Defect", 8, 16, 44, 14, True
-    AddCombo fra, "cboBGradeDefect", 54, 14, 128, 18
-    AddLabel fra, "lblBgL", "Location", 190, 16, 48, 14, True
-    AddCombo fra, "cboBGradeLocation", 240, 14, 104, 18
-    AddLabel fra, "lblBgR", "Root cause", 352, 16, 60, 14, True
-    AddCombo fra, "cboBGradeRoot", 414, 14, 128, 18
-    AddLabel fra, "lblBgN", "Notes", 8, 40, 40, 14, True
-    AddTextBox fra, "txtBGradeNotes", 54, 38, 574, 18
+    AddLabel fra, "lblEnD", "Disposition", 8, 18, 62, 14, True
+    AddCombo fra, "cboDisposition", 72, 16, 86, 18
+    AddLabel fra, "lblEnQ", "Qty", 168, 18, 22, 14, True
+    AddTextBox fra, "txtLineQty", 192, 16, 44, 20
+    AddLabel fra, "lblEnDef", "Defect", 250, 18, 40, 14, True
+    AddCombo fra, "cboDefect", 292, 16, 126, 18
+    AddLabel fra, "lblEnL", "Location", 428, 18, 48, 14, True
+    AddCombo fra, "cboLocation", 478, 16, 104, 18
 
-    '========================= reject detail ================================
-    step_ = "adding the reject panel"
-    Set fra = AddFrame(dsn, "fraReject", "Reject detail", 8, 296, 644, 92)
-    AddLabel fra, "lblRjD", "Defect", 8, 16, 44, 14, True
-    AddCombo fra, "cboRejectDefect", 54, 14, 128, 18
-    AddLabel fra, "lblRjL", "Location", 190, 16, 48, 14, True
-    AddCombo fra, "cboRejectLocation", 240, 14, 104, 18
-    AddLabel fra, "lblRjO", "At op", 352, 16, 32, 14, True
-    AddCombo fra, "cboRejectOp", 386, 14, 68, 18
-    AddLabel fra, "lblRjR", "Root cause", 8, 40, 60, 14, True
-    AddCombo fra, "cboRejectRoot", 70, 38, 128, 18
-    AddLabel fra, "lblRjA", "Action", 206, 40, 40, 14, True
-    AddCombo fra, "cboRejectAction", 248, 38, 128, 18
-    AddLabel fra, "lblRjN", "Notes", 8, 64, 40, 14, True
-    AddTextBox fra, "txtRejectNotes", 54, 62, 574, 18
+    AddLabel fra, "lblEnO", "At op", 8, 44, 34, 14, True
+    AddCombo fra, "cboOp", 72, 42, 86, 18
+    AddLabel fra, "lblEnR", "Root cause", 168, 44, 62, 14, True
+    AddCombo fra, "cboRoot", 232, 42, 136, 18
+    AddLabel fra, "lblEnA", "Action", 380, 44, 40, 14, True
+    AddCombo fra, "cboAction", 424, 42, 158, 18
+
+    AddLabel fra, "lblEnN", "Notes", 8, 70, 34, 14, True
+    AddTextBox fra, "txtLineNotes", 72, 68, 510, 18
+
+    AddButton fra, "btnAddLine", "Add line", 8, 92, 86, 22, False
+    AddButton fra, "btnRemoveLine", "Remove selected", 100, 92, 110, 22, False
+    AddLabel fra, "lblEnHint", _
+        "Example: reject 10 = 3 collet crush, 5 chip at butt, 2 breakthrough. Add each as its own line.", _
+        220, 96, 420, 14, False
+
+    '========================= the lines ====================================
+    step_ = "adding the detail list"
+    AddLabel dsn, "lblHdrList", "Lines recorded for this release", 12, 244, 200, 14, True
+    AddListBox dsn, "lstLines", 8, 260, 656, 150
 
     '========================= buttons ======================================
     step_ = "adding the buttons"
-    AddButton dsn, "btnSubmit", "Submit release", 430, 400, 108, 28, True
-    AddButton dsn, "btnCancel", "Cancel", 548, 400, 100, 28, False
+    AddButton dsn, "btnSubmit", "Submit release", 446, 420, 108, 28, True
+    AddButton dsn, "btnCancel", "Cancel", 564, 420, 100, 28, False
 
     '========================= code =========================================
     step_ = "injecting the form code"
@@ -193,8 +184,10 @@ Public Sub REVO_BuildReleaseForm(Optional ByVal codePath As String = "")
     REVO_Core.Audit "REVO_FormBuilder", "BUILD", FORM_NAME, "Rebuilt from " & codePath
 
     MsgBox "frmReleaseDetails rebuilt." & vbCrLf & vbCrLf & _
-           "Controls: release qty, rework / B grade / reject quantities, and a " & _
-           "coded defect, location, detected-at op, root cause and action for each." & vbCrLf & vbCrLf & _
+           "Release qty, rework / B grade / reject totals, and a quality detail list " & _
+           "that takes as many cause lines as a disposition needs - so 10 rejects can " & _
+           "be 3 of one defect, 5 of another and 2 of a third." & vbCrLf & vbCrLf & _
+           "Submit is blocked until each disposition's lines add up to its total." & vbCrLf & vbCrLf & _
            "Dropdowns read from the " & SH_QUAL_CODES & " sheet every time the form opens.", _
            vbInformation, "Form Builder"
     LastBuildError = ""
@@ -304,6 +297,15 @@ Private Sub AddCombo(ByVal parent As Object, ByVal nm As String, _
     ' Free text stays allowed - validation lives in the form, not the control.
     Cosmetic c, "MatchRequired", False
     Cosmetic c, "Style", 0          ' fmStyleDropDownCombo
+End Sub
+
+Private Sub AddListBox(ByVal parent As Object, ByVal nm As String, _
+                      ByVal l As Single, ByVal t As Single, ByVal w As Single, ByVal h As Single)
+    Dim c As Object
+    Set c = AddCtl(parent, "Forms.ListBox.1", nm, l, t, w, h)
+    SetFont c, 9, False
+    Cosmetic c, "ColumnCount", 7
+    Cosmetic c, "ColumnWidths", "58 pt;30 pt;90 pt;62 pt;38 pt;96 pt;120 pt"
 End Sub
 
 Private Function AddFrame(ByVal parent As Object, ByVal nm As String, ByVal cap As String, _

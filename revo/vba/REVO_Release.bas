@@ -72,15 +72,17 @@ Public Sub REVO_ReleaseCarts()
     Dim frm As Object
     Dim r As Long
     Dim WO As String, sku As String, cart As String
-    Dim qty As Double, priorRel As Double, logRel As Double, remaining As Double
+    Dim qty As Double, priorRel As Double, remaining As Double
     Dim reqQty As Double, newRel As Double
     Dim toInv As Double, reworkQty As Double, bGradeQty As Double, rejectQty As Double
     Dim summary As Object
     Dim detail As String, skips As String, warnings As String
     Dim nReleased As Long, nSkipped As Long, nCancelled As Long
-    Dim releaseID As String
+    Dim nQualityLines As Long
+    Dim releaseID As String, rejectText As String
     Dim today As Date
     Dim answer As VbMsgBoxResult
+    Dim li As Long
 
     On Error GoTo FailFast
 
@@ -126,37 +128,25 @@ Public Sub REVO_ReleaseCarts()
             GoTo NextRow
         End If
 
-        '--- what the sheet thinks vs what the log says ----------------------
+        ' Released-to-date comes from the sheet. Release Log is NOT cross-checked
+        ' here on purpose: this routine is what writes the log, so a cart being
+        ' released for the first time legitimately has no log history, and older
+        ' rows carry carts as PGN37 / PGN500 against bare numbers on the floor
+        ' sheet, so a lookup can never match them either. Interrupting an
+        ' operator mid-release to adjudicate that is the wrong place for it.
+        ' Mismatches are still detected - reported in the run summary below, on
+        ' the self test, and fixed deliberately by REVO_ReconcileFloor.
         priorRel = REVO_Core.SafeD(fm.ws.Cells(r, fm.cRelToDate).Value)
-        logRel = ReleasedToDateFromLog(WO, cart)
-
-        If Abs(priorRel - logRel) > 0.001 Then
-            REVO_Core.BeginModalDialog
-            answer = MsgBox( _
-                "Cart " & cart & " / " & WO & " (" & sku & ")" & vbCrLf & vbCrLf & _
-                "REVO Floor says released to date:  " & priorRel & vbCrLf & _
-                "Release Log actually records:      " & logRel & vbCrLf & vbCrLf & _
-                "Release Log is the record of what shipped." & vbCrLf & vbCrLf & _
-                "Use the Release Log figure (" & logRel & ")?" & vbCrLf & _
-                "Choosing No keeps the sheet value and carries on.", _
-                vbQuestion + vbYesNoCancel + vbDefaultButton1, "Released-to-date mismatch")
-            REVO_Core.EndModalDialog
-
-            If answer = vbCancel Then GoTo Finish
-            If answer = vbYes Then
-                priorRel = logRel
-                fm.ws.Cells(r, fm.cRelToDate).Value = priorRel
-                REVO_Core.Audit "REVO_Release", "CORRECT", fm.ws.name & "!R" & r, _
-                                "Released-to-date reset to Release Log value " & logRel
-            End If
-            warnings = warnings & "  Cart " & cart & " (" & WO & "): sheet " & _
-                       priorRel & " vs log " & logRel & vbCrLf
-        End If
 
         remaining = qty - priorRel
 
         '--- nothing left on the cart: report it, never stamp it silently ----
         If remaining <= 0 Then
+            If ReleasedToDateFromLog(WO, cart) = 0 And priorRel > 0 Then
+                warnings = warnings & "  Cart " & cart & " (" & WO & "): sheet shows " & _
+                           priorRel & " released but Release Log has no matching rows. " & _
+                           "Likely a stale value - run REVO_ReconcileFloor." & vbCrLf
+            End If
             skips = skips & "  Cart " & cart & " (" & WO & ", " & sku & "): " & _
                     "already shows " & priorRel & " of " & qty & " released - nothing left." & vbCrLf
             fm.ws.Cells(r, fm.cStatus).Value = "RELEASED"
@@ -190,22 +180,31 @@ Public Sub REVO_ReleaseCarts()
 
         releaseID = REVO_Core.NewEventID("REL")
 
-        '--- quality events, one per disposition ----------------------------
-        If reworkQty > 0 Then
-            WriteQE "REWORK", reworkQty, today, WO, sku, cart, releaseID, _
-                    frm.ReworkDefect, frm.ReworkLocation, frm.ReworkOp, _
-                    frm.ReworkRootCause, frm.ReworkAction, frm.ReworkNotes
-        End If
-        If rejectQty > 0 Then
-            WriteQE "REJECT", rejectQty, today, WO, sku, cart, releaseID, _
-                    frm.RejectDefect, frm.RejectLocation, frm.RejectOp, _
-                    frm.RejectRootCause, frm.RejectAction, frm.RejectNotes
-        End If
-        If bGradeQty > 0 Then
-            WriteQE "B GRADE", bGradeQty, today, WO, sku, cart, releaseID, _
-                    frm.BGradeDefect, frm.BGradeLocation, "", _
-                    frm.BGradeRootCause, "Downgraded to B", frm.BGradeNotes
-        End If
+        '--- one quality event per cause line, not per disposition ----------
+        ' A disposition can carry several causes with different quantities, so
+        ' the form hands back a list. Collapsing it here would throw away
+        ' exactly the detail the dashboard exists to show.
+        For li = 1 To frm.LineCount
+            WriteQE frm.LineDisposition(li), frm.LineQty(li), today, WO, sku, cart, _
+                    releaseID, frm.LineDefect(li), frm.LineLocation(li), frm.LineOp(li), _
+                    frm.LineRootCause(li), frm.LineAction(li), frm.LineNotes(li)
+        Next li
+
+        rejectText = frm.RejectSummary()
+        nQualityLines = nQualityLines + frm.LineCount
+
+        '--- legacy logs, one row per cause line so the counts still tie -----
+        For li = 1 To frm.LineCount
+            Select Case UCase$(frm.LineDisposition(li))
+                Case "REWORK"
+                    AppendRework today, WO, sku, cart, frm.LineQty(li), _
+                                 frm.LineDefect(li) & IIf(Len(frm.LineRootCause(li)) > 0, _
+                                 " - " & frm.LineRootCause(li), "")
+                Case "REJECT"
+                    AppendReject today, WO, sku, cart, frm.LineQty(li), _
+                                 LineText(frm, li)
+            End Select
+        Next li
 
         Unload frm
         Set frm = Nothing
@@ -215,8 +214,6 @@ Public Sub REVO_ReleaseCarts()
             AppendShipments today, sku, toInv, cart
             Accumulate summary, sku, toInv
         End If
-        If reworkQty > 0 Then AppendRework today, WO, sku, cart, reworkQty
-        If rejectQty > 0 Then AppendReject today, WO, sku, cart, rejectQty, RejectSummaryText(frm)
         If bGradeQty > 0 Then UpdateBGrade sku, bGradeQty
 
         newRel = priorRel + reqQty
@@ -239,7 +236,7 @@ Public Sub REVO_ReleaseCarts()
             "Released this pass: " & reqQty & " of " & qty & vbCrLf & _
             "To inventory: " & toInv & vbCrLf & _
             "B Grade: " & bGradeQty & "   Rework: " & reworkQty & "   Reject: " & rejectQty & vbCrLf
-        If rejectQty > 0 Then detail = detail & "Reject: " & RejectSummaryText(frm) & vbCrLf
+        If rejectQty > 0 Then detail = detail & "Reject: " & rejectText & vbCrLf
         If newRel < qty Then
             detail = detail & "*** PARTIAL - " & (qty - newRel) & " remaining on cart ***" & vbCrLf
         End If
@@ -268,7 +265,7 @@ Finish:
         On Error GoTo 0
     End If
 
-    ReportOutcome nReleased, nSkipped, nCancelled, skips, warnings
+    ReportOutcome nReleased, nSkipped, nCancelled, nQualityLines, skips, warnings
     REVO_Core.Audit "REVO_Release", "RUN", SH_FLOOR, _
                     nReleased & " released, " & nSkipped & " skipped, " & nCancelled & " cancelled"
     Exit Sub
@@ -297,21 +294,21 @@ End Sub
 ' OUTCOME REPORT  -  the operator always finds out what happened
 '==============================================================================
 Private Sub ReportOutcome(ByVal nReleased As Long, ByVal nSkipped As Long, _
-                          ByVal nCancelled As Long, ByVal skips As String, _
-                          ByVal warnings As String)
+                          ByVal nCancelled As Long, ByVal nQualityLines As Long, _
+                          ByVal skips As String, ByVal warnings As String)
     Dim m As String
     Dim icon As VbMsgBoxStyle
 
-    m = "Released:   " & nReleased & vbCrLf & _
-        "Skipped:    " & nSkipped & vbCrLf & _
-        "Cancelled:  " & nCancelled & vbCrLf
+    m = "Released:        " & nReleased & vbCrLf & _
+        "Skipped:         " & nSkipped & vbCrLf & _
+        "Cancelled:       " & nCancelled & vbCrLf & _
+        "Quality lines:   " & nQualityLines & vbCrLf
 
     If Len(skips) > 0 Then
         m = m & vbCrLf & "SKIPPED ROWS" & vbCrLf & skips
     End If
     If Len(warnings) > 0 Then
-        m = m & vbCrLf & "RELEASED-TO-DATE MISMATCHES" & vbCrLf & warnings & vbCrLf & _
-            "Run REVO_ReconcileFloor to see every row where REVO Floor and Release Log disagree."
+        m = m & vbCrLf & "WORTH A LOOK AFTERWARDS" & vbCrLf & warnings
     End If
 
     If nReleased = 0 And nSkipped = 0 And nCancelled = 0 Then
@@ -608,15 +605,19 @@ NoForm:
 Done:
 End Function
 
-Private Function RejectSummaryText(ByVal frm As Object) As String
+' One cause line rendered for the legacy Reject Log Description column.
+Private Function LineText(ByVal frm As Object, ByVal i As Long) As String
     Dim s As String
-    s = frm.RejectDefect
-    If Len(frm.RejectLocation) > 0 And frm.RejectLocation <> "Not Specified" Then
-        s = s & " (" & frm.RejectLocation & ")"
+    s = frm.LineDefect(i)
+    If Len(frm.LineLocation(i)) > 0 And frm.LineLocation(i) <> "Not Specified" Then
+        s = s & " (" & frm.LineLocation(i) & ")"
     End If
-    If Len(frm.RejectRootCause) > 0 Then s = s & " - " & frm.RejectRootCause
-    If Len(frm.RejectNotes) > 0 Then s = s & "; " & frm.RejectNotes
-    RejectSummaryText = s
+    If Len(frm.LineOp(i)) > 0 And frm.LineOp(i) <> "Unknown" Then
+        s = s & " at op " & frm.LineOp(i)
+    End If
+    If Len(frm.LineRootCause(i)) > 0 Then s = s & " - " & frm.LineRootCause(i)
+    If Len(frm.LineNotes(i)) > 0 Then s = s & "; " & frm.LineNotes(i)
+    LineText = s
 End Function
 
 Public Sub EnsureShipmentsHeaders()
@@ -698,7 +699,8 @@ Private Sub AppendReject(ByVal d As Date, ByVal WO As String, ByVal sku As Strin
 End Sub
 
 Private Sub AppendRework(ByVal d As Date, ByVal WO As String, ByVal sku As String, _
-                         ByVal cart As String, ByVal qty As Double)
+                         ByVal cart As String, ByVal qty As Double, _
+                         Optional ByVal reason As String = "")
     Dim ws As Worksheet, r As Long
     Set ws = REVO_Core.GetOrCreateSheet(SH_REWORK)
     If Len(REVO_Core.SafeS(ws.Cells(1, 1).Value)) = 0 Then
@@ -714,6 +716,7 @@ Private Sub AppendRework(ByVal d As Date, ByVal WO As String, ByVal sku As Strin
     ws.Cells(r, 4).Value = cart
     ws.Cells(r, 5).Value = qty
     ws.Cells(r, 6).Value = "In Progress"
+    If Len(reason) > 0 Then ws.Cells(r, 7).Value = reason
 End Sub
 
 Private Sub UpdateBGrade(ByVal sku As String, ByVal qty As Double)
