@@ -1,0 +1,319 @@
+Option Explicit
+
+'=====================================================================
+' frmTableQuality — QC dialog for one serialised table
+'
+' SELF-BUILDING: every control is created in UserForm_Initialize, so this form
+' needs no .frx. Install = Insert > UserForm, set (Name) = frmTableQuality in
+' the Properties window, then paste this whole file into its code window.
+'
+' Driven by modTableQuality: it calls Prime(...) with the row's context, shows
+' the form, then reads Outcome / Serial / Station / Reason / Notes.
+'
+' Reason is a free-text combo. Whatever is typed is accepted; the list it
+' offers is whatever QC Reasons has learned so far. When enough data exists,
+' categorise the reasons on the QC Reasons sheet — nothing here changes.
+'=====================================================================
+
+' ---- results read by the caller ----
+Public UserCancelled As Boolean       ' this table was skipped / cancelled
+Public CancelledAll As Boolean        ' stop the whole batch
+Public Outcome As String
+Public Serial As String
+Public Station As String
+Public Reason As String
+Public Notes As String
+
+' ---- policy ----
+Private Const REQUIRE_SERIAL_ON_RELEASE As Boolean = True   ' serial is applied at ST05
+Private Const REQUIRE_REASON_ON_NON_RELEASE As Boolean = True
+
+' ---- controls (WithEvents so the handlers below fire) ----
+Private WithEvents txtSerial As MSForms.TextBox
+Private WithEvents optRelease As MSForms.OptionButton
+Private WithEvents optBGrade As MSForms.OptionButton
+Private WithEvents optRework As MSForms.OptionButton
+Private WithEvents optReject As MSForms.OptionButton
+Private WithEvents optHold As MSForms.OptionButton
+Private WithEvents cboStation As MSForms.ComboBox
+Private WithEvents cboReason As MSForms.ComboBox
+Private WithEvents txtNotes As MSForms.TextBox
+Private WithEvents btnSubmit As MSForms.CommandButton
+Private WithEvents btnSkip As MSForms.CommandButton
+Private WithEvents btnCancel As MSForms.CommandButton
+Private lblContext As MSForms.Label
+Private lblReasonHint As MSForms.Label
+Private fraOutcome As MSForms.Frame
+
+Private mUnitId As String
+Private mNextStation As String
+Private mInBatch As Boolean
+
+'=====================================================================
+' Build
+'=====================================================================
+Private Sub UserForm_Initialize()
+    Const L As Single = 12, W As Single = 372
+    Dim y As Single
+
+    Me.Caption = "Table QC"
+    Me.Width = W + 2 * L + 8
+    Me.Height = 440
+
+    y = 8
+    Set lblContext = AddLabel("lblContext", L, y, W, 54, "", True)
+    lblContext.BackColor = RGB(242, 242, 242)
+    lblContext.BorderStyle = fmBorderStyleSingle
+    y = y + 60
+
+    AddLabel "lblSerialCap", L, y + 3, 110, 16, "Serial number:", True
+    Set txtSerial = Me.Controls.Add("Forms.TextBox.1", "txtSerial", True)
+    With txtSerial
+        .Left = L + 112: .Top = y: .Width = W - 112: .Height = 22
+        .Font.Size = 12
+    End With
+    y = y + 26
+    AddLabel "lblSerialHint", L + 112, y, W - 112, 14, "Scan or type. Required to release; optional otherwise.", False, True
+    y = y + 20
+
+    Set fraOutcome = Me.Controls.Add("Forms.Frame.1", "fraOutcome", True)
+    With fraOutcome
+        .Left = L: .Top = y: .Width = W: .Height = 52
+        .Caption = "Outcome"
+    End With
+    Set optRelease = AddOption("optRelease", 8, 18, 68, "Release")
+    Set optBGrade = AddOption("optBGrade", 80, 18, 68, "B-Grade")
+    Set optRework = AddOption("optRework", 152, 18, 68, "Rework")
+    Set optReject = AddOption("optReject", 224, 18, 68, "Reject")
+    Set optHold = AddOption("optHold", 296, 18, 68, "Hold")
+    y = y + 60
+
+    AddLabel "lblStationCap", L, y + 3, 110, 16, "Station:", True
+    Set cboStation = Me.Controls.Add("Forms.ComboBox.1", "cboStation", True)
+    With cboStation
+        .Left = L + 112: .Top = y: .Width = 120: .Height = 20
+        .Style = fmStyleDropDownList
+    End With
+    y = y + 28
+
+    AddLabel "lblReasonCap", L, y + 3, 110, 16, "Reason:", True
+    Set cboReason = Me.Controls.Add("Forms.ComboBox.1", "cboReason", True)
+    With cboReason
+        .Left = L + 112: .Top = y: .Width = W - 112: .Height = 20
+        .Style = fmStyleDropDownCombo          ' free text allowed; list is a suggestion
+        .MatchRequired = False
+        .AutoWordSelect = False
+    End With
+    y = y + 24
+    Set lblReasonHint = AddLabel("lblReasonHint", L + 112, y, W - 112, 14, _
+        "Type anything. Picks from reasons used before; new ones are remembered.", False, True)
+    y = y + 20
+
+    AddLabel "lblNotesCap", L, y + 3, 110, 16, "Notes:", True
+    Set txtNotes = Me.Controls.Add("Forms.TextBox.1", "txtNotes", True)
+    With txtNotes
+        .Left = L + 112: .Top = y: .Width = W - 112: .Height = 54
+        .MultiLine = True: .WordWrap = True: .ScrollBars = fmScrollBarsVertical
+        .EnterKeyBehavior = True
+    End With
+    y = y + 64
+
+    Set btnSubmit = AddButton("btnSubmit", L, y, 120, "Submit", True)
+    Set btnSkip = AddButton("btnSkip", L + 128, y, 100, "Skip this table", False)
+    Set btnCancel = AddButton("btnCancel", L + W - 100, y, 100, "Cancel", False)
+    btnCancel.Cancel = True
+    y = y + 36
+    Me.Height = y + 36
+
+    UserCancelled = True
+    CancelledAll = False
+End Sub
+
+'=====================================================================
+' Called by modTableQuality before Show
+'=====================================================================
+Public Sub Prime(ByVal unitId As String, ByVal sku As String, ByVal WO As String, _
+                 ByVal target As Variant, ByVal zone As String, ByVal nextStation As String, _
+                 ByVal existingSerial As String, ByVal stations As Variant, ByVal reasons As Variant, _
+                 ByVal inBatch As Boolean)
+    Dim i As Long, targetText As String
+
+    mUnitId = unitId
+    mNextStation = nextStation
+    mInBatch = inBatch
+
+    If IsDate(target) Then targetText = Format$(target, "ddd d mmm yyyy") Else targetText = "—"
+    Me.Caption = "Table QC — " & unitId
+    lblContext.Caption = "Unit " & unitId & "    WO# " & IIf(Len(WO) > 0, WO, "—") & vbCrLf & _
+                         sku & vbCrLf & _
+                         "Target " & targetText & "    Zone: " & IIf(Len(zone) > 0, zone, "—") & _
+                         "    Next: " & IIf(Len(nextStation) > 0, nextStation, "—")
+
+    txtSerial.Value = existingSerial
+
+    cboStation.Clear
+    If IsArray(stations) Then
+        For i = LBound(stations) To UBound(stations)
+            cboStation.AddItem CStr(stations(i))
+        Next i
+    End If
+    ' default: the station the table is at (or the last one when complete)
+    If Len(nextStation) > 0 And UCase$(nextStation) <> "COMPLETE" Then
+        cboStation.Value = StationOrLast(nextStation)
+    ElseIf cboStation.ListCount > 0 Then
+        cboStation.ListIndex = cboStation.ListCount - 1
+    End If
+
+    cboReason.Clear
+    If IsArray(reasons) Then
+        On Error Resume Next
+        For i = LBound(reasons) To UBound(reasons)
+            cboReason.AddItem CStr(reasons(i))
+        Next i
+        On Error GoTo 0
+    End If
+
+    ' default outcome: Release when every station is ticked, else leave the choice open
+    optRelease.Value = (UCase$(nextStation) = "COMPLETE")
+    btnSkip.Visible = inBatch
+    btnCancel.Caption = IIf(inBatch, "Cancel all", "Cancel")
+    RefreshState
+End Sub
+
+'=====================================================================
+' Buttons
+'=====================================================================
+Private Sub btnSubmit_Click()
+    Dim out As String
+    out = SelectedOutcome()
+    If Len(out) = 0 Then
+        MsgBox "Pick an outcome.", vbExclamation, "Table QC": Exit Sub
+    End If
+
+    Serial = UCase$(Trim$(txtSerial.Value))
+    Reason = Trim$(cboReason.Value)
+    Notes = Trim$(txtNotes.Value)
+    Station = Trim$(cboStation.Value)
+
+    If REQUIRE_SERIAL_ON_RELEASE And out = modTableQuality.OUT_RELEASE And Len(Serial) = 0 Then
+        MsgBox "A serial number is required to release a table.", vbExclamation, "Table QC"
+        txtSerial.SetFocus: Exit Sub
+    End If
+    If REQUIRE_REASON_ON_NON_RELEASE And out <> modTableQuality.OUT_RELEASE And Len(Reason) = 0 Then
+        MsgBox "Enter a reason for " & out & " (free text is fine).", vbExclamation, "Table QC"
+        cboReason.SetFocus: Exit Sub
+    End If
+    If out = modTableQuality.OUT_REJECT Then
+        If MsgBox("Reject " & mUnitId & "?" & vbCrLf & vbCrLf & "Reason: " & Reason, _
+                  vbYesNo + vbQuestion, "Table QC") <> vbYes Then Exit Sub
+    End If
+
+    Outcome = out
+    UserCancelled = False
+    Me.Hide
+End Sub
+
+Private Sub btnSkip_Click()
+    UserCancelled = True
+    Me.Hide
+End Sub
+
+Private Sub btnCancel_Click()
+    UserCancelled = True
+    CancelledAll = mInBatch
+    Me.Hide
+End Sub
+
+Private Sub UserForm_QueryClose(Cancel As Integer, CloseMode As Integer)
+    If CloseMode = vbFormControlMenu Then
+        Cancel = True
+        btnCancel_Click
+    End If
+End Sub
+
+'=====================================================================
+' Live state
+'=====================================================================
+Private Sub optRelease_Click(): RefreshState: End Sub
+Private Sub optBGrade_Click():  RefreshState: End Sub
+Private Sub optRework_Click():  RefreshState: End Sub
+Private Sub optReject_Click():  RefreshState: End Sub
+Private Sub optHold_Click():    RefreshState: End Sub
+
+Private Sub RefreshState()
+    Dim out As String
+    out = SelectedOutcome()
+    Select Case out
+        Case modTableQuality.OUT_RELEASE
+            lblReasonHint.Caption = "Optional for a release."
+            btnSubmit.Caption = "Release"
+        Case modTableQuality.OUT_HOLD
+            lblReasonHint.Caption = "Required. Goes to the Holds sheet; the floor shows ON HOLD until Released? = TRUE."
+            btnSubmit.Caption = "Put on hold"
+        Case ""
+            lblReasonHint.Caption = "Type anything. Picks from reasons used before; new ones are remembered."
+            btnSubmit.Caption = "Submit"
+        Case Else
+            lblReasonHint.Caption = "Required. Type anything; it is remembered for next time."
+            btnSubmit.Caption = out
+    End Select
+End Sub
+
+Private Function SelectedOutcome() As String
+    If optRelease.Value Then
+        SelectedOutcome = modTableQuality.OUT_RELEASE
+    ElseIf optBGrade.Value Then
+        SelectedOutcome = modTableQuality.OUT_BGRADE
+    ElseIf optRework.Value Then
+        SelectedOutcome = modTableQuality.OUT_REWORK
+    ElseIf optReject.Value Then
+        SelectedOutcome = modTableQuality.OUT_REJECT
+    ElseIf optHold.Value Then
+        SelectedOutcome = modTableQuality.OUT_HOLD
+    End If
+End Function
+
+Private Function StationOrLast(ByVal wanted As String) As String
+    Dim i As Long
+    For i = 0 To cboStation.ListCount - 1
+        If StrComp(cboStation.List(i), wanted, vbTextCompare) = 0 Then
+            StationOrLast = cboStation.List(i): Exit Function
+        End If
+    Next i
+    If cboStation.ListCount > 0 Then StationOrLast = cboStation.List(cboStation.ListCount - 1)
+End Function
+
+'=====================================================================
+' control factories
+'=====================================================================
+Private Function AddLabel(ByVal name As String, ByVal x As Single, ByVal y As Single, _
+                          ByVal w As Single, ByVal h As Single, ByVal caption As String, _
+                          Optional ByVal bold As Boolean = False, Optional ByVal muted As Boolean = False) As MSForms.Label
+    Set AddLabel = Me.Controls.Add("Forms.Label.1", name, True)
+    With AddLabel
+        .Left = x: .Top = y: .Width = w: .Height = h
+        .Caption = caption
+        .Font.Bold = bold
+        .WordWrap = True
+        If muted Then .ForeColor = RGB(110, 110, 110): .Font.Size = 8
+    End With
+End Function
+
+Private Function AddOption(ByVal name As String, ByVal x As Single, ByVal y As Single, _
+                           ByVal w As Single, ByVal caption As String) As MSForms.OptionButton
+    Set AddOption = fraOutcome.Controls.Add("Forms.OptionButton.1", name, True)
+    With AddOption
+        .Left = x: .Top = y: .Width = w: .Height = 18
+        .Caption = caption
+    End With
+End Function
+
+Private Function AddButton(ByVal name As String, ByVal x As Single, ByVal y As Single, _
+                           ByVal w As Single, ByVal caption As String, ByVal isDefault As Boolean) As MSForms.CommandButton
+    Set AddButton = Me.Controls.Add("Forms.CommandButton.1", name, True)
+    With AddButton
+        .Left = x: .Top = y: .Width = w: .Height = 26
+        .Caption = caption
+        .Default = isDefault
+    End With
+End Function
