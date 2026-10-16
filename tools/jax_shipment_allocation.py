@@ -1,13 +1,18 @@
 """Build the JAX inbound launch-allocation workbook.
 
 Usage:
-    python tools/jax_shipment_allocation.py <packing_list.xlsx> <emea_alloc.xlsx> <launch_plan.csv|xlsx> <out.xlsx>
+    python tools/jax_shipment_allocation.py <packing_list.xlsx> <emea_alloc.xlsx> <launch_plan.csv|xlsx> <out.xlsx> [plan_asks.csv] [ask_column]
 
 Inputs
   packing list   HIE packing list (one sheet, header row 10: PO_NUMBER, ITEM, QTY, ...)
   emea_alloc     EMEA_AllocationQ4.xlsx (Project, Item, Launch Date, EMEA, Direct, Jax)
   launch plan    2026 Launch Plan Allocation export (Project, Item, Launch Date, B2C, EMEA,
                  NA, AP, Trade show, Sponsorship, Marketing, ...). Extra empty columns are ignored.
+  plan asks      optional CSV exported from the Shipment Request workbook's 'JAX Shipments by Date'
+                 tab (sku, block, alloc, recd, jax_need, rule, flag, ask_<date>..., finished, completes,
+                 note, instr, held). Gives 'already received', the remaining JAX-bound need and what
+                 was actually requested for this sailing, so shortfalls are measured against the
+                 request that passed the 85% gate, not against the full launch allowance.
 
 Rule (stock is Jacksonville-bound):
   Allocated here  = EMEA via JAX (EMEA less Direct, from the EMEA file) + B2C + NA + Trade show
@@ -167,6 +172,30 @@ def read_plan(path):
     return out
 
 
+def read_asks(path, ask_col=None):
+    if not path:
+        return []
+    with open(path, newline="", encoding="utf-8-sig") as fh:
+        rows = list(csv.DictReader(fh))
+    ask_col = ask_col or [c for c in rows[0] if c.startswith("ask_")][-1]
+    for r in rows:
+        r["sku"] = norm(r["sku"]); r["key"] = key(r["sku"])
+        for c, v in list(r.items()):
+            if c not in ("sku", "key", "block", "rule", "flag", "note", "instr", "launch"):
+                r[c] = num(v) or 0
+        if r.get("block") == "CORE":
+            # CORE rows carry a 3-window replenishment need; what is owed from THIS sailing is its ask
+            r["note"] = f"3-window replenishment need {r['jax_need']:,.0f}; " + (r.get("note") or "")
+            r["jax_need"] = r[ask_col]
+            r["rule"] = r["rule"] or "n/a (CORE)"
+            r["flag"] = r["flag"] or "n/a"
+    launch_keys = {r["key"] for r in rows if r.get("block") == "Launch"}
+    dupes = [r for r in rows if r.get("block") == "CORE" and r["key"] in launch_keys]
+    for r in dupes:
+        print(f"  plan asks: dropping CORE duplicate of launch SKU {r['sku']} (ask {r.get('ask_1016', '')})")
+    return [r for r in rows if r not in dupes]
+
+
 def hdr_row(ws, row, headers, widths=None, height=30, fills=None):
     for c, h in enumerate(headers, start=1):
         cell = ws.cell(row, c, h)
@@ -203,10 +232,13 @@ def add_table(ws, name, ref):
     ws.add_table(t)
 
 
-def build(pl_path, emea_path, plan_path, out):
+def build(pl_path, emea_path, plan_path, out, asks_path=None, ask_col=None):
     lines, meta, delivery = read_packing_list(pl_path)
     emea = read_emea(emea_path)
     plan = read_plan(plan_path)
+    asks = read_asks(asks_path, ask_col)
+    if asks and not ask_col:
+        ask_col = [c for c in asks[0] if c.startswith("ask_")][-1]
     ref = (meta.get("REF.NO") or "shipment").strip()
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
@@ -277,6 +309,37 @@ def build(pl_path, emea_path, plan_path, out):
     em.conditional_formatting.add(f"I5:I{last_em}", FormulaRule(formula=['LEFT(I5,7)="Covered"'], fill=GRN))
     EM = lambda col: f"'EMEA Q4'!${col}$5:${col}${last_em}"
 
+    # ============ Plan Asks (from the Shipment Request workbook) =============================
+    AK = None
+    if asks:
+        pa = wb.create_sheet("Plan Asks")
+        title(pa, "Plan Asks — what the shipment plan requested from HIE (JAX Shipments by Date tab)",
+              "Values exported from Shipment_Request_HIE - Updated.xlsm, 'JAX Shipments by Date'. Launch block: allocation, already received/invoiced in JAX, "
+              "remaining JAX-bound need (net of receipts and the AP direct share), the 85% rule (MEETS/MOVE on projected completion by launch), and the units "
+              "requested per sailing. CORE block: replenishment asks. CORE rows that duplicate a launch SKU were dropped. Match Key is derived.", 16)
+            
+        acols = ["sku", "block", "launch", "alloc", "recd", "jax_need", "rule", "flag"] + [c for c in asks[0] if c.startswith("ask_")] + ["finished", "completes", "held", "note", "instr"]
+        alabels = {"sku": "SKU", "block": "Block", "launch": "Launch Date", "alloc": "Allocation", "recd": "Already Recd / Invoiced", "jax_need": "JAX-Bound Need (remaining; CORE = this sailing)",
+                   "rule": "85% Rule", "flag": "Channel Gate Flag", "finished": "Finished at HIE (when asked)", "completes": "Completes by Cutoff", "held": "Held by Gate", "note": "Note", "instr": "Instruction"}
+        hdrs = [alabels.get(c, "Ask " + c[4:6] + "/" + c[6:8]) for c in acols] + ["Match Key"]
+        hdr_row(pa, 4, hdrs, [34, 8, 11, 9, 9, 10, 8, 12] + [9] * sum(c.startswith("ask_") for c in acols) + [10, 9, 8, 40, 26, 34], height=32)
+        for i, r in enumerate(asks, start=5):
+            for c, col in enumerate(acols, start=1):
+                v = r.get(col)
+                if col == "launch" and v not in (None, ""):
+                    try: v = dt.datetime(1899, 12, 30) + dt.timedelta(days=int(float(v)))
+                    except (TypeError, ValueError): pass
+                if v in (None, ""): continue
+                cell = pa.cell(i, c, v); cell.font = F(color=GREY)
+                if col == "launch": cell.number_format = DATE
+                elif isinstance(v, (int, float)): cell.number_format = "#,##0;\\(#,##0\\);\\-"
+            pa.cell(i, len(acols) + 1, r["key"]).font = F()
+        last_pa = 4 + len(asks)
+        add_table(pa, "tblPlanAsks", f"A4:{L(len(acols) + 1)}{last_pa}")
+        pa.freeze_panes = "C5"
+        acol = {c: f"'Plan Asks'!${L(i + 1)}$5:${L(i + 1)}${last_pa}" for i, c in enumerate(acols)}
+        AK = f"'Plan Asks'!${L(len(acols) + 1)}$5:${L(len(acols) + 1)}${last_pa}"
+
     # ============ Allocation (main) ========================================================
     al = wb.create_sheet("Allocation", 0)
     cues = OrderedDict()
@@ -298,31 +361,32 @@ def build(pl_path, emea_path, plan_path, out):
     no_alloc = sorted([kv for kv in cues.items() if kv[0] not in plan_keys and kv[0] not in emea_keys], key=lambda kv: kv[1]["item"])
 
     CH = ["EMEA via JAX", "B2C", "NA (Americas)", "Trade show", "Sponsorship", "Marketing"]
-    AH = (["Launch", "SKU", "Launch Date", "Days to Launch", "Arriving"]
-          + CH + ["Total JAX Plan", "Coverage % of Plan"]
-          + CH + ["To Stock", "Still Owed (later shipments)", "Action", "AP (excluded)", "EMEA Direct (excluded)", "Pool", "Factor", "Residual"])
-    AW = [38, 32, 11, 8, 9] + [9, 8, 9, 8, 9, 9] + [9, 9] + [9, 8, 9, 8, 9, 9] + [8, 10, 62, 8, 9, 7, 7, 7]
+    ask_lab = f"Requested for this sailing ({ask_col[4:6]}/{ask_col[6:8]})" if ask_col else "Requested for this sailing"
+    AH = (["Launch", "SKU", "Launch Date", "Days to Launch", "Arriving", "Already in JAX (recd / invoiced)", "Remaining JAX Need (plan)", ask_lab, "Arriving vs Request", "85% Rule (plan)"]
+          + CH + ["Total JAX Allowance"]
+          + CH + ["To Stock", "Still Owed after this shipment", "Action", "AP (excluded)", "EMEA Direct (excluded)", "Pool", "Factor", "Residual"])
+    AW = [38, 32, 11, 8, 9, 10, 10, 11, 9, 9] + [9, 8, 9, 8, 9, 9] + [9] + [9, 8, 9, 8, 9, 9] + [8, 10, 66, 8, 9, 7, 7, 7]
     NCOL = len(AH)
-    # column indexes (1-based)
-    cA, cE = 5, 6                      # Arriving; first plan channel (EMEA via JAX)
-    cP = {n: cE + i for i, n in enumerate(CH)}          # plan allowances F..K
-    cTOT, cCOV = cE + 6, cE + 7                          # L, M
-    cN0 = cCOV + 1                                      # first "this shipment" channel (N)
-    cS = {n: cN0 + i for i, n in enumerate(CH)}          # N..S
-    cSTK, cOWE, cACT = cN0 + 6, cN0 + 7, cN0 + 8          # T, U, V
+    cA, cRECD, cNEED, cREQ, cVS, cRULE = 5, 6, 7, 8, 9, 10
+    cE = 11                                             # first plan allowance (EMEA via JAX)
+    cP = {n: cE + i for i, n in enumerate(CH)}
+    cTOT = cE + 6
+    cN0 = cTOT + 1
+    cS = {n: cN0 + i for i, n in enumerate(CH)}
+    cSTK, cOWE, cACT = cN0 + 6, cN0 + 7, cN0 + 8
     cAP, cDIR, cPOOL, cFAC, cRES = cACT + 1, cACT + 2, cACT + 3, cACT + 4, cACT + 5
     col = lambda c, r: f"{L(c)}{r}"
 
-    title(al, f"Packing list {ref} → Jacksonville: how to allocate what is arriving",
-          f"Delivered to JAX {delivery:%m/%d/%Y} · HIE (Hamson) · {meta.get('VESSEL/VOYAGE', '')}. Jacksonville-fulfilled channels only: EMEA via JAX (EMEA less Direct, "
-          "from the EMEA Q4 file) + B2C, NA, Trade show, Sponsorship, Marketing (from the Launch Plan). AP and EMEA Direct are excluded. "
-          "Rule: EMEA via JAX is filled first (longest lead time); the rest of the shipment is split across the other channels in proportion to their plan allowances. "
-          "Plan fully covered → each channel gets its full allowance and the surplus goes to stock. 'Still owed' = plan not covered by this shipment.", NCOL)
+    title(al, f"Packing list {ref} → Jacksonville: what arrived vs what was requested, and how to allocate it",
+          f"Delivered to JAX {delivery:%m/%d/%Y} · HIE (Hamson) · {meta.get('VESSEL/VOYAGE', '')}. "
+          "'Remaining JAX Need' and 'Requested' come from the shipment plan (Plan Asks tab): allocation less what Jacksonville already received, less the AP direct share, "
+          "requested only where the launch MEETS the 85% rule. Shortfalls are measured against that request. Allowances (B2C, NA, Trade show, Sponsorship, Marketing from the Launch Plan; "
+          "EMEA via JAX from the EMEA Q4 file) drive the channel split: EMEA first, the rest pro-rata. AP and EMEA Direct are excluded.", NCOL)
     al.cell(4, cACT, "As-of date").font = F(size=9, color=GREY)
     s1 = al.cell(4, cACT + 1, "=TODAY()"); s1.number_format = DATE
     al.cell(5, cACT, "Urgent if days to launch ≤").font = F(size=9, color=GREY)
     s2 = al.cell(5, cACT + 1, 7)
-    for s in (s1, s2): s.fill = INPUT; s.font = F(color="FF0000FF")
+    for s_ in (s1, s2): s_.fill = INPUT; s_.font = F(color="FF0000FF")
     wb.defined_names["ASOF"] = DefinedName("ASOF", attr_text=f"Allocation!${L(cACT + 1)}$4")
     wb.defined_names["URGENT"] = DefinedName("URGENT", attr_text=f"Allocation!${L(cACT + 1)}$5")
 
@@ -331,100 +395,114 @@ def build(pl_path, emea_path, plan_path, out):
     first2 = sec2 + 1
     last_all = first2 + len(no_alloc) - 1
     both = lambda c: f"${L(c)}${first}:${L(c)}${last_all}"
-    band = [("Cue units arriving", f"=SUM({both(cA)})", NUM), ("Total JAX plan (these SKUs)", f"=SUM({both(cTOT)})", NUM),
-            ("Coverage of plan", f"=IF(SUM({both(cTOT)})=0,\"\",SUM({both(cA)})/SUM({both(cTOT)}))", "0%")] + \
-           [(f"→ {n}", f"=SUM({both(cS[n])})", NUM) for n in CH] + \
-           [("→ To stock", f"=SUM({both(cSTK)})", NUM), ("Still owed (later shipments)", f"=SUM({both(cOWE)})", NUM)]
+    band = [("Cue units arriving", f"=SUM({both(cA)})", NUM), ("Requested for this sailing", f"=SUM({both(cREQ)})", NUM),
+            ("Under request (HIE shipped less than asked)", f'=-SUMIF({both(cVS)},"<0")', "[Red]#,##0;[Red]\\(#,##0\\);\\-"),
+            ("Over request / not requested", f'=SUMIF({both(cVS)},">0")', NUM),
+            ("Already in JAX before this shipment", f"=SUM({both(cRECD)})", NUM), ("Still owed after this shipment", f"=SUM({both(cOWE)})", NUM)] + \
+           [(f"→ {n}", f"=SUM({both(cS[n])})", NUM) for n in CH] + [("→ To stock", f"=SUM({both(cSTK)})", NUM)]
     for i, (lab, f, nf) in enumerate(band, start=1):
         a = al.cell(4, i, lab); a.font = F(size=9, color=GREY); a.alignment = Alignment(wrap_text=True, vertical="bottom")
         v = al.cell(5, i, f); v.font = F(size=14, bold=True); v.number_format = nf
-    al.row_dimensions[4].height = 26; al.row_dimensions[5].height = 22
-    # two-level header: group bands on row 7, column headers on row 8
+    al.row_dimensions[4].height = 30; al.row_dimensions[5].height = 22
     section(al, 6, f"LAUNCH ITEMS ON THIS SHIPMENT ({len(with_alloc)} SKUs) — sorted by launch date · then other cues", NCOL)
-    groups = [(1, cA, "SHIPMENT"), (cE, cCOV, "LAUNCH PLAN ALLOWANCES — Jacksonville channels"), (cN0, cOWE, "ALLOCATE THIS SHIPMENT"), (cACT, cACT, ""), (cAP, cRES, "Excluded / workings")]
-    for a, b, txt in groups:
+    groups = [(1, cA, "SHIPMENT"), (cRECD, cRULE, "SHIPMENT PLAN (Plan Asks tab)"), (cE, cTOT, "LAUNCH PLAN ALLOWANCES — Jacksonville channels"), (cN0, cOWE, "ALLOCATE THIS SHIPMENT"), (cACT, cACT, ""), (cAP, cRES, "Excluded / workings")]
+    for a, b_, txt in groups:
         c = al.cell(7, a, txt or None); c.font = F(bold=True, size=9, color="FFFFFFFF"); c.alignment = Alignment(horizontal="center")
-        c.fill = HDR_EX if a >= cAP else PatternFill("solid", fgColor="FF2E75B6" if a == cN0 else "FF44546A")
-        if b > a: al.merge_cells(start_row=7, start_column=a, end_row=7, end_column=b)
-    hdr_row(al, 8, AH, AW, height=32, fills={**{c: HDR_EX for c in range(cAP, cRES + 1)}, **{c: PatternFill("solid", fgColor="FF2E75B6") for c in range(cN0, cOWE + 1)}})
+        c.fill = HDR_EX if a >= cAP else PatternFill("solid", fgColor="FF2E75B6" if a == cN0 else ("FF7A6A1E" if a == cRECD else "FF44546A"))
+        if b_ > a: al.merge_cells(start_row=7, start_column=a, end_row=7, end_column=b_)
+    fills = {**{c: HDR_EX for c in range(cAP, cRES + 1)}, **{c: PatternFill("solid", fgColor="FF2E75B6") for c in range(cN0, cOWE + 1)}, **{c: PatternFill("solid", fgColor="FF7A6A1E") for c in range(cRECD, cRULE + 1)}}
+    hdr_row(al, 8, AH, AW, height=40, fills=fills)
 
     def write_row(r, k, a):
-        E, TOT, COV = col(cA, r), col(cTOT, r), col(cCOV, r)
+        E, TOT = col(cA, r), col(cTOT, r)
+        RECD, NEED, REQ, VS, RULE = col(cRECD, r), col(cNEED, r), col(cREQ, r), col(cVS, r), col(cRULE, r)
         POOL, FAC, RES = col(cPOOL, r), col(cFAC, r), col(cRES, r)
-        plan_rng = f"{col(cP['B2C'], r)}:{col(cP['Marketing'], r)}"       # the five pro-rata channels
+        plan_rng = f"{col(cP['B2C'], r)}:{col(cP['Marketing'], r)}"
         al.cell(r, 1, f'=IFERROR(INDEX({PC["Project"]},MATCH("{k}",{PK},0)),IFERROR(INDEX({EM("A")},MATCH("{k}",{EM("J")},0)),""))')
         al.cell(r, 2, a["item"]).font = F(bold=True)
         al.cell(r, 3, f'=IFERROR(INDEX({PC["Launch Date"]},MATCH("{k}",{PK},0)),IFERROR(INDEX({EM("C")},MATCH("{k}",{EM("J")},0)),""))')
         al.cell(r, 4, f'=IF(C{r}="","",C{r}-ASOF)')
         al.cell(r, cA, f'=SUMIFS({IBQ},{IBK},"{k}")')
+        if AK:
+            has = f'COUNTIF({AK},"{k}")>0'
+            al.cell(r, cRECD, f'=IF({has},SUMIFS({acol["recd"]},{AK},"{k}"),"")')
+            al.cell(r, cNEED, f'=IF({has},SUMIFS({acol["jax_need"]},{AK},"{k}"),"")')
+            al.cell(r, cREQ, f'=IF({has},SUMIFS({acol[ask_col]},{AK},"{k}"),"")')
+            al.cell(r, cVS, f'=IF({REQ}="","",{E}-{REQ})')
+            al.cell(r, cRULE, f'=IFERROR(INDEX({acol["rule"]},MATCH("{k}",{AK},0)),"")')
+        else:
+            for c in (cRECD, cNEED, cREQ, cVS, cRULE): al.cell(r, c, "")
         al.cell(r, cP["EMEA via JAX"], f'=SUMIFS({EM("G")},{EM("J")},"{k}")')
         for n, src in [("B2C", "B2C"), ("NA (Americas)", "NA"), ("Trade show", "Trade show"), ("Sponsorship", "Sponsorship"), ("Marketing", "Marketing")]:
             al.cell(r, cP[n], f'=SUMIFS({PC[src]},{PK},"{k}")')
         al.cell(r, cTOT, f"=SUM({col(cE, r)}:{col(cP['Marketing'], r)})")
-        al.cell(r, cCOV, f'=IF({TOT}=0,"",{E}/{TOT})')
-        # workings
         al.cell(r, cPOOL, f"={E}-{col(cS['EMEA via JAX'], r)}")
         al.cell(r, cFAC, f"=IF(SUM({plan_rng})=0,0,MIN(1,{POOL}/SUM({plan_rng})))")
         al.cell(r, cRES, f"=IF(AND({FAC}<1,SUM({plan_rng})>0),{POOL}-SUMPRODUCT(INT({plan_rng}*{FAC})),0)")
-        # this shipment
         al.cell(r, cS["EMEA via JAX"], f"=MIN({col(cP['EMEA via JAX'], r)},{E})")
         for pos, n in enumerate(["B2C", "NA (Americas)", "Trade show", "Sponsorship", "Marketing"], start=1):
             P = col(cP[n], r)
             al.cell(r, cS[n], f"=INT({P}*{FAC})+IF(AND({FAC}<1,MATCH(MAX({plan_rng}),{plan_rng},0)={pos}),{RES},0)")
         now_rng = f"{col(cS['EMEA via JAX'], r)}:{col(cS['Marketing'], r)}"
         al.cell(r, cSTK, f"={E}-SUM({now_rng})")
-        al.cell(r, cOWE, f"={TOT}-SUM({now_rng})")
+        al.cell(r, cOWE, f'=IF({NEED}<>"",MAX(0,{NEED}-{E}),MAX(0,{TOT}-{E}))')
         al.cell(r, cAP, f'=SUMIFS({PC["AP"]},{PK},"{k}")')
         al.cell(r, cDIR, f'=SUMIFS({EM("F")},{EM("J")},"{k}")')
         D, C, STK, OWE = f"D{r}", f"C{r}", col(cSTK, r), col(cOWE, r)
         urg = f'IF({D}="","",IF({D}<0,"LAUNCH PASSED — ",IF({D}<=URGENT,"URGENT ("&TEXT({D},"0")&" days) — ","")))'
-        al.cell(r, cACT, (f'={urg}&IF({TOT}=0,"No Jacksonville allocation on file — all "&TEXT({E},"#,##0")&" to stock",'
-                          f'IF({OWE}>0,"Covers "&TEXT({COV},"0%")&" of plan — distribute all "&TEXT({E},"#,##0")&" as shown (EMEA first, rest pro-rata); "&TEXT({OWE},"#,##0")&" still owed on later shipments",'
-                          f'"Plan covered — distribute "&TEXT({TOT},"#,##0")&" per allowances; "&TEXT({STK},"#,##0")&" to stock"))'))
+        noplan = (f'IF({TOT}=0,"No Jacksonville allocation on file — all "&TEXT({E},"#,##0")&" to stock",'
+                  f'IF({OWE}>0,"No plan request on file — distribute all "&TEXT({E},"#,##0")&" as shown; "&TEXT({OWE},"#,##0")&" of the allowance not yet covered",'
+                  f'"Plan covered — distribute "&TEXT({TOT},"#,##0")&" per allowances; "&TEXT({STK},"#,##0")&" to stock"))')
+        withplan = (f'IF(AND({REQ}=0,{RULE}="MOVE"),"NOT REQUESTED — launch held by the 85% gate (MOVE); "&TEXT({E},"#,##0")&" arrived anyway — hold in stock until the gate clears",'
+                    f'IF({REQ}=0,"Not requested on this sailing — "&TEXT({E},"#,##0")&" arrived; distribute as shown or hold",'
+                    f'IF({VS}<0,"SHORT "&TEXT(-{VS},"#,##0")&" vs the "&TEXT({REQ},"#,##0")&" requested — HIE shipped less than asked; distribute the "&TEXT({E},"#,##0")&" as shown, chase HIE for the balance",'
+                    f'IF({VS}>0,"Over request by "&TEXT({VS},"#,##0")&" — distribute as shown; extra to stock",'
+                    f'"Matches request ("&TEXT({REQ},"#,##0")&") — distribute as shown"))))')
+        al.cell(r, cACT, f'={urg}&IF({REQ}="",{noplan},{withplan})')
         for c in range(1, NCOL + 1):
             cell = al.cell(r, c)
             if c != 2: cell.font = F(color=GREY if c >= cAP else None)
             if c == 3: cell.number_format = DATE
             if c == 4: cell.number_format = "0;[Red]-0"
-            if c == cCOV: cell.number_format = "0%"
+            if c == cVS: cell.number_format = "+#,##0;[Red]-#,##0;0"
             elif c == cFAC: cell.number_format = "0.00"
-            elif c >= 5 and c != cACT: cell.number_format = NUM
+            elif c >= 5 and c not in (cACT, cRULE): cell.number_format = NUM
             if c == cACT: cell.alignment = Alignment(wrap_text=True, vertical="center")
             cell.border = Border(bottom=THIN)
         al.row_dimensions[r].height = 28
 
     for i, (k, a) in enumerate(with_alloc):
         write_row(first + i, k, a)
-    section(al, sec2, f"OTHER CUES ON THIS SHIPMENT ({len(no_alloc)} SKUs) — not in the launch plan or the EMEA file; all units to stock", NCOL)
+    section(al, sec2, f"OTHER CUES ON THIS SHIPMENT ({len(no_alloc)} SKUs) — no launch allowance; replenishment (CORE) asks shown where the plan had one", NCOL)
     for i, (k, a) in enumerate(no_alloc):
         write_row(first2 + i, k, a)
     tot = last_all + 1
     al.cell(tot, 2, "TOTAL — all cues").font = F(bold=True)
-    for c in list(range(cA, cCOV)) + list(range(cN0, cOWE + 1)) + [cAP, cDIR]:
-        x = al.cell(tot, c, f"=SUM({L(c)}{first}:{L(c)}{last_all})"); x.font = F(bold=True, color=GREY if c >= cAP else None); x.number_format = NUM
-    x = al.cell(tot, cCOV, f'=IF({L(cTOT)}{tot}=0,"",{L(cA)}{tot}/{L(cTOT)}{tot})'); x.font = F(bold=True); x.number_format = "0%"
+    for c in [cA, cRECD, cNEED, cREQ, cVS] + list(range(cE, cTOT + 1)) + list(range(cN0, cOWE + 1)) + [cAP, cDIR]:
+        x = al.cell(tot, c, f"=SUM({L(c)}{first}:{L(c)}{last_all})"); x.font = F(bold=True, color=GREY if c >= cAP else None); x.number_format = NUM if c != cVS else "+#,##0;[Red]-#,##0;0"
     al.freeze_panes = "C9"
     rng = lambda c: f"{L(c)}{first}:{L(c)}{last_all}"
     al.conditional_formatting.add(rng(4), CellIsRule(operator="lessThan", formula=["0"], fill=RED, font=Font(color="FFB3261E", bold=True)))
     al.conditional_formatting.add(rng(4), FormulaRule(formula=[f"AND(ISNUMBER(D{first}),D{first}>=0,D{first}<=URGENT)"], fill=AMB))
-    al.conditional_formatting.add(rng(cCOV), FormulaRule(formula=[f"AND(ISNUMBER({L(cCOV)}{first}),{L(cCOV)}{first}<0.5)"], fill=RED))
-    al.conditional_formatting.add(rng(cCOV), FormulaRule(formula=[f"AND(ISNUMBER({L(cCOV)}{first}),{L(cCOV)}{first}>=0.5,{L(cCOV)}{first}<1)"], fill=AMB))
-    al.conditional_formatting.add(rng(cCOV), FormulaRule(formula=[f"AND(ISNUMBER({L(cCOV)}{first}),{L(cCOV)}{first}>=1)"], fill=GRN))
+    al.conditional_formatting.add(rng(cVS), CellIsRule(operator="lessThan", formula=["0"], fill=RED, font=Font(color="FFB3261E", bold=True)))
+    al.conditional_formatting.add(rng(cVS), FormulaRule(formula=[f'AND(ISNUMBER({L(cVS)}{first}),{L(cVS)}{first}=0)'], fill=GRN))
+    al.conditional_formatting.add(rng(cRULE), FormulaRule(formula=[f'{L(cRULE)}{first}="MOVE"'], fill=RED, font=Font(color="FFB3261E", bold=True)))
     for c in range(cN0, cN0 + 6):
         al.conditional_formatting.add(rng(c), CellIsRule(operator="greaterThan", formula=["0"], fill=GRN, font=Font(bold=True)))
     al.conditional_formatting.add(rng(cOWE), CellIsRule(operator="greaterThan", formula=["0"], font=Font(color="FFB3261E")))
     al.conditional_formatting.add(rng(cACT), FormulaRule(formula=[f'OR(LEFT({L(cACT)}{first},6)="URGENT",LEFT({L(cACT)}{first},6)="LAUNCH")'], font=Font(color="FFB26A00", bold=True)))
+    al.conditional_formatting.add(rng(cACT), FormulaRule(formula=[f'ISNUMBER(SEARCH("SHORT ",{L(cACT)}{first}))'], font=Font(color="FFB3261E", bold=True)))
     al.column_dimensions.group(L(cPOOL), L(cRES), hidden=True)
     others = [ln for ln in lines if ln["type"] != "Cue"]
     al.cell(tot + 2, 1, f"Not allocated: {len(others)} non-cue lines ({sum(l['qty'] for l in others):,} units — samples and one shaft) on the Inbound {ref} tab. "
-            "EMEA launch items NOT on this shipment: EMEA Q4 tab, red status. Grey columns at the right are excluded from the allocation (AP, EMEA Direct); "
-            "Pool / Factor / Residual are the pro-rata workings (grouped, click + to expand).").font = F(size=9, color=GREY)
+            "EMEA launch items NOT on this shipment: EMEA Q4 tab, red status. 'Still owed' = remaining JAX need from the plan less this shipment (falls back to allowance less arriving when the plan has no row). "
+            "Grey columns at the right are excluded from the allocation (AP, EMEA Direct); Pool / Factor / Residual are the pro-rata workings (grouped, click + to expand).").font = F(size=9, color=GREY)
     al.merge_cells(start_row=tot + 2, start_column=1, end_row=tot + 2, end_column=NCOL)
 
-    wb._sheets = [wb["Allocation"], wb["EMEA Q4"], wb["Launch Plan"], wb[f"Inbound {ref}"]]
+    wb._sheets = [wb["Allocation"]] + ([wb["Plan Asks"]] if asks else []) + [wb["EMEA Q4"], wb["Launch Plan"], wb[f"Inbound {ref}"]]
     wb.save(out)
     print(f"wrote {out}: {len(with_alloc)} launch SKUs + {len(no_alloc)} other cues, {len(lines)} lines, {len(emea)} EMEA rows, {len(plan)} plan rows")
 
 
 if __name__ == "__main__":
-    build(*sys.argv[1:5])
+    build(*sys.argv[1:7])
