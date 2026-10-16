@@ -1,20 +1,24 @@
 """Build the JAX inbound launch-allocation workbook.
 
 Usage:
-    python tools/jax_shipment_allocation.py <packing_list.xlsx> <emea_alloc.xlsx> <out.xlsx> [npa_export.csv|xlsx]
+    python tools/jax_shipment_allocation.py <packing_list.xlsx> <emea_alloc.xlsx> <launch_plan.csv|xlsx> <out.xlsx>
 
 Inputs
   packing list   HIE packing list (one sheet, header row 10: PO_NUMBER, ITEM, QTY, ...)
   emea_alloc     EMEA_AllocationQ4.xlsx (Project, Item, Launch Date, EMEA, Direct, Jax)
-  npa_export     optional NetSuite "New Product Allocations" export (Internal ID, Name,
-                 Description, Base Price, Targeted Launch Date, B2C, Sponsorships, EMEA,
-                 Americas, ASIA, Tradeshows, Marketing). If omitted the NPA Import tab is
-                 left as a paste area and the channel columns fill when it is pasted.
+  launch plan    2026 Launch Plan Allocation export (Project, Item, Launch Date, B2C, EMEA,
+                 NA, AP, Trade show, Sponsorship, Marketing, ...). Extra empty columns are ignored.
 
-Rule: stock is Jacksonville-bound, so only JAX-fulfilled channels are allocated:
-EMEA via JAX (EMEA total minus Direct), B2C, Americas, Sponsorship, Tradeshow,
-Marketing. EMEA Direct and ASIA/AP are excluded. Left for stock = arriving minus
-the sum of those allocations; negative = short.
+Rule (stock is Jacksonville-bound):
+  Allocated here  = EMEA via JAX (EMEA less Direct, from the EMEA file) + B2C + NA + Trade show
+                    + Sponsorship + Marketing (from the launch plan).
+  Excluded        = AP and EMEA Direct (not served from Jacksonville).
+  Left for stock  = units arriving - total allocated; negative = shortfall.
+
+SKUs match on a token-sorted key (so "MAP TEAL NW RAD" = "MAP TEAL RAD NW"); a launch-plan
+suffix after " - " (e.g. "- BOX", "- B2C / AP") is ignored for matching and duplicate plan rows
+for one SKU are summed. Samples on the packing list are listed but not allocated.
+All derived numbers are live formulas; yellow cells are inputs.
 """
 from __future__ import annotations
 
@@ -29,6 +33,7 @@ import openpyxl
 from openpyxl.formatting.rule import CellIsRule, FormulaRule
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter as L
+from openpyxl.workbook.defined_name import DefinedName
 from openpyxl.worksheet.table import Table, TableStyleInfo
 
 warnings.filterwarnings("ignore")
@@ -36,6 +41,7 @@ warnings.filterwarnings("ignore")
 INK, GOLD, GREY, BLUE = "FF1C1610", "FFC8922A", "FF595959", "FF1F4E79"
 INPUT = PatternFill("solid", fgColor="FFFFF2CC")
 HDR = PatternFill("solid", fgColor="FF44546A")
+HDR_EX = PatternFill("solid", fgColor="FF8C8C8C")
 SEC = PatternFill("solid", fgColor=GOLD)
 RED = PatternFill("solid", fgColor="FFFBE3E0")
 AMB = PatternFill("solid", fgColor="FFFFF0D4")
@@ -43,16 +49,46 @@ GRN = PatternFill("solid", fgColor="FFE2F0E4")
 THIN = Side(style="thin", color="FFD9D9D9")
 NUM = "#,##0;[Red]\\(#,##0\\);\\-"
 DATE = "m/d/yyyy"
-NPA_COLS = ["Internal ID", "Name", "Description", "Base Price", "Targeted Launch Date", "B2C", "Sponsorships", "EMEA", "Americas", "ASIA", "Tradeshows", "Marketing"]
-NPA_ROWS = 400  # paste area size
+PLAN_COLS = ["Project", "Item", "Exclusive", "On Current Launch", "Launch Date", "Butt", "Shaft", "MSRP", "Dealer ASP",
+             "B2C", "EMEA", "NA", "AP", "Trade show", "Sponsorship", "Marketing", "B2B TLT Units", "B2C TLT Units", "Total Units/ordering", "EST REV"]
+CHANNELS = [("B2C", "B2C"), ("NA", "NA (Americas)"), ("Trade show", "Trade show"), ("Sponsorship", "Sponsorship"), ("Marketing", "Marketing")]
 
 
 def F(**k):
     return Font(name="Arial", size=k.pop("size", 10), **k)
 
 
+def norm(s) -> str:
+    return re.sub(r"\s+", " ", str(s or "").strip())
+
+
 def key(s) -> str:
-    return " ".join(sorted(re.sub(r"\s+", " ", str(s or "").strip().upper()).split()))
+    base = re.sub(r"\s+-\s+.*$", "", norm(s))  # drop " - BOX", " - B2C / AP" program suffixes
+    return " ".join(sorted(base.upper().split()))
+
+
+def num(v):
+    if isinstance(v, (int, float)):
+        return v
+    t = str(v or "").strip().replace(",", "").replace("$", "")
+    if t in ("", "-"):
+        return None
+    try:
+        return float(t) if "." in t else int(t)
+    except ValueError:
+        return v
+
+
+def date(v):
+    if isinstance(v, (dt.date, dt.datetime)):
+        return v
+    t = str(v or "").strip()
+    for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%m/%d/%y", "%Y-%m-%d %H:%M:%S"):
+        try:
+            return dt.datetime.strptime(t, fmt)
+        except ValueError:
+            pass
+    return None
 
 
 def item_type(item: str, po, remark: str) -> str:
@@ -84,7 +120,7 @@ def read_packing_list(path):
             if isinstance(item, str) and item.strip().upper().startswith("TOTAL"):
                 break
             continue
-        item = re.sub(r"\s+", " ", str(item).strip())
+        item = norm(item)
         remark = str(g("DESCRIPTION") or "").strip()
         rows.append(dict(line=i, po=g("PO_NUMBER"), item=item, qty=qty, remark=remark, ctns=g("CTNS_TOTAL") or 0,
                          type=item_type(item, g("PO_NUMBER"), remark), key=key(item)))
@@ -101,50 +137,41 @@ def read_emea(path):
         d = dict(zip(hdr, r))
         if not d.get("Item"):
             continue
-        item = re.sub(r"\s+", " ", str(d["Item"]).strip())
-        out.append(dict(project=d.get("Project"), item=item, launch=d.get("Launch Date"), emea=d.get("EMEA") or 0,
-                        direct=d.get("Direct") or 0, jax=d.get("Jax") or 0, key=key(item)))
+        item = norm(d["Item"])
+        out.append(dict(project=d.get("Project"), item=item, launch=date(d.get("Launch Date")), emea=num(d.get("EMEA")) or 0,
+                        direct=num(d.get("Direct")) or 0, jax=num(d.get("Jax")) or 0, key=key(item)))
     return out
 
 
-def read_npa(path):
-    if not path:
-        return []
+def read_plan(path):
     if path.lower().endswith(".csv"):
-        with open(path, newline="", encoding="utf-8-sig") as fh:
-            rows = list(csv.reader(fh))
+        with open(path, newline="", encoding="utf-8-sig", errors="replace") as fh:
+            raw = [r[:40] for r in csv.reader(fh)]
     else:
         ws = openpyxl.load_workbook(path, data_only=True).worksheets[0]
-        rows = [[c for c in r] for r in ws.iter_rows(values_only=True)]
-    hdr = [str(h or "").strip() for h in rows[0]]
+        raw = [list(r[:40]) for r in ws.iter_rows(values_only=True)]
+    hdr = [norm(h).replace('"', "") for h in raw[0]]
     out = []
-    for r in rows[1:]:
+    for r in raw[1:]:
         d = dict(zip(hdr, r))
-        if not d.get("Name"):
+        item = norm(d.get("Item"))
+        if not item:
             continue
-        row = []
-        for c in NPA_COLS:
-            v = d.get(c)
-            if isinstance(v, str):
-                t = v.strip().replace(",", "")
-                if re.fullmatch(r"-?\d+(\.\d+)?", t):
-                    v = float(t) if "." in t else int(t)
-                elif c == "Targeted Launch Date":
-                    for fmt in ("%m/%d/%Y", "%Y-%m-%d", "%m/%d/%y"):
-                        try:
-                            v = dt.datetime.strptime(t, fmt); break
-                        except ValueError:
-                            pass
-            row.append(v)
+        row = {c: d.get(c) for c in PLAN_COLS}
+        row["Item"] = item
+        row["Launch Date"] = date(row["Launch Date"])
+        for c in PLAN_COLS[5:]:
+            row[c] = num(row[c])
+        row["key"] = key(item)
         out.append(row)
     return out
 
 
-def hdr_row(ws, row, headers, widths=None, height=30):
+def hdr_row(ws, row, headers, widths=None, height=30, fills=None):
     for c, h in enumerate(headers, start=1):
         cell = ws.cell(row, c, h)
         cell.font = F(bold=True, color="FFFFFFFF")
-        cell.fill = HDR
+        cell.fill = (fills or {}).get(c, HDR)
         cell.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
         if widths:
             ws.column_dimensions[L(c)].width = widths[c - 1]
@@ -160,7 +187,7 @@ def title(ws, text, sub, cols):
     ws["A2"].font = F(size=9, color=GREY)
     ws["A2"].alignment = Alignment(wrap_text=True, vertical="top")
     ws.merge_cells(start_row=2, start_column=1, end_row=2, end_column=cols)
-    ws.row_dimensions[2].height = 28
+    ws.row_dimensions[2].height = 30
 
 
 def section(ws, row, text, cols):
@@ -176,52 +203,42 @@ def add_table(ws, name, ref):
     ws.add_table(t)
 
 
-def build(pl_path, emea_path, out, npa_path=None):
+def build(pl_path, emea_path, plan_path, out):
     lines, meta, delivery = read_packing_list(pl_path)
     emea = read_emea(emea_path)
-    npa = read_npa(npa_path)
+    plan = read_plan(plan_path)
     ref = (meta.get("REF.NO") or "shipment").strip()
     wb = openpyxl.Workbook()
+    wb.remove(wb.active)
 
-    # ============ NPA Import (paste area) =================================================
-    np_ = wb.create_sheet("NPA Import")
-    title(np_, "NPA Import — NetSuite New Product Allocations export",
-          "Paste the New Product Allocations saved-search export here from row 4 (keep these headers in this order). "
-          "The Allocation tab reads B2C, Sponsorships, Americas, Tradeshows and Marketing by SKU from this tab. EMEA and ASIA are not used from here: "
-          "EMEA comes from the EMEA Q4 tab (Direct excluded) and ASIA is not served from Jacksonville.", 12)
-    hdr_row(np_, 3, NPA_COLS, [10, 34, 44, 9, 12, 8, 11, 8, 9, 8, 10, 9], height=24)
-    np_first, np_last = 4, 3 + max(NPA_ROWS, len(npa) + 50)
-    for r in range(np_first, np_last + 1):
-        for c in range(1, 13):
-            cell = np_.cell(r, c)
-            cell.fill = INPUT
-            cell.font = F(color="FF0000FF")
-            if c == 5: cell.number_format = DATE
-            if c >= 6: cell.number_format = "#,##0;\\(#,##0\\);"
-    for i, row in enumerate(npa, start=np_first):
-        for c, v in enumerate(row, start=1):
-            np_.cell(i, c, v)
-    np_.freeze_panes = "C4"
-    NPH = f"'NPA Import'!$A$3:$L$3"
-    NPD = f"'NPA Import'!$A${np_first}:$L${np_last}"
-    NPN = f"'NPA Import'!$B${np_first}:$B${np_last}"
-
-    NPC = {c: L(i + 1) for i, c in enumerate(NPA_COLS)}  # fixed column letters, header order is part of the contract
-
-    def npa_sum(colname, sku_cell):
-        col = NPC[colname]
-        return f"SUMIFS('NPA Import'!${col}${np_first}:${col}${np_last},{NPN},\"*\"&{sku_cell})"
-
-    def npa_launch(sku_cell):
-        col = NPC["Targeted Launch Date"]
-        return f"IFERROR(INDEX('NPA Import'!${col}${np_first}:${col}${np_last},MATCH(\"*\"&{sku_cell},{NPN},0)),\"\")"
+    # ============ Launch Plan (source) =====================================================
+    lp = wb.create_sheet("Launch Plan")
+    title(lp, "Launch Plan — 2026 Launch Plan Allocation (as received)",
+          "Grey = the export as received. Match Key is derived (token-sorted SKU, ' - BOX' / ' - B2C / AP' suffix dropped). "
+          "The Allocation tab sums B2C, NA, Trade show, Sponsorship and Marketing by Match Key, so duplicate rows for one SKU add up. "
+          "EMEA here is used only as a cross-check; the EMEA Direct / via-JAX split comes from the EMEA Q4 tab. AP is excluded.", 21)
+    LH = PLAN_COLS + ["Match Key"]
+    hdr_row(lp, 4, LH, [36, 34, 8, 8, 11, 9, 9, 10, 10, 7, 7, 7, 7, 8, 9, 8, 8, 8, 10, 10, 34], height=30)
+    for i, p in enumerate(plan, start=5):
+        for c, col in enumerate(LH, start=1):
+            v = p.get(col) if col != "Match Key" else p["key"]
+            if v is None:
+                continue
+            cell = lp.cell(i, c, v); cell.font = F(color=GREY if col != "Match Key" else None)
+            if col == "Launch Date": cell.number_format = DATE
+            elif col in ("Butt", "Shaft", "MSRP", "Dealer ASP", "EST REV"): cell.number_format = "$#,##0"
+            elif c >= 10: cell.number_format = "#,##0;\\(#,##0\\);\\-"
+    last_lp = 4 + len(plan)
+    add_table(lp, "tblLaunchPlan", f"A4:U{last_lp}")
+    lp.freeze_panes = "C5"
+    PK = f"'Launch Plan'!$U$5:$U${last_lp}"
+    PC = {col: f"'Launch Plan'!${L(i + 1)}$5:${L(i + 1)}${last_lp}" for i, col in enumerate(LH)}
 
     # ============ Inbound lines ===========================================================
     ib = wb.create_sheet(f"Inbound {ref}")
     title(ib, f"Inbound {ref} — packing list lines as shipped",
           "Values from the HIE packing list. Type and Match Key are derived; the Allocation tab sums Qty by Match Key.", 8)
-    IH = ["PO", "Item", "Qty", "Remark", "Cartons", "Type", "PL Line", "Match Key"]
-    hdr_row(ib, 4, IH, [14, 36, 8, 26, 9, 8, 8, 36], height=22)
+    hdr_row(ib, 4, ["PO", "Item", "Qty", "Remark", "Cartons", "Type", "PL Line", "Match Key"], [14, 36, 8, 26, 9, 8, 8, 36], height=22)
     for i, ln in enumerate(lines, start=5):
         for c, v in enumerate([ln["po"], ln["item"], ln["qty"], ln["remark"], ln["ctns"], ln["type"], ln["line"], ln["key"]], start=1):
             cell = ib.cell(i, c, v); cell.font = F(color=GREY if c <= 5 else None)
@@ -231,21 +248,21 @@ def build(pl_path, emea_path, out, npa_path=None):
     ib.cell(last_ib + 2, 2, "Total units (ties to packing list TOTAL)").font = F(bold=True)
     c = ib.cell(last_ib + 2, 3, f"=SUM(C5:C{last_ib})"); c.font = F(bold=True); c.number_format = "#,##0"
     ib.cell(last_ib + 3, 2, "Cue units").font = F()
-    c = ib.cell(last_ib + 3, 3, f'=SUMIFS(C5:C{last_ib},F5:F{last_ib},"Cue")'); c.number_format = "#,##0"
+    ib.cell(last_ib + 3, 3, f'=SUMIFS(C5:C{last_ib},F5:F{last_ib},"Cue")').number_format = "#,##0"
     ib.freeze_panes = "C5"
     IBQ, IBK = f"'Inbound {ref}'!$C$5:$C${last_ib}", f"'Inbound {ref}'!$H$5:$H${last_ib}"
 
     # ============ EMEA Q4 ==================================================================
     em = wb.create_sheet("EMEA Q4")
-    title(em, "EMEA Q4 launch allocations — and which ones this shipment covers",
-          "Grey = EMEA_AllocationQ4.xlsx as received. Via JAX = EMEA units fulfilled from Jacksonville (Direct is shipped direct and excluded). Blue = derived.", 10)
-    EH = ["Launch", "SKU", "Launch Date", "Days to Launch", "EMEA Total", "EMEA Direct (excluded)", "EMEA via JAX", f"Arriving on {ref}", "Status", "Match Key"]
-    hdr_row(em, 4, EH, [46, 32, 11, 9, 9, 10, 9, 10, 40, 32], height=30)
+    title(em, "EMEA Q4 launch allocations — Direct vs via Jacksonville, and what this shipment covers",
+          "Grey = EMEA_AllocationQ4.xlsx as received. Via JAX = EMEA units fulfilled from Jacksonville; Direct ships direct and is excluded. Blue = derived.", 10)
+    hdr_row(em, 4, ["Launch", "SKU", "Launch Date", "Days to Launch", "EMEA Total", "EMEA Direct (excluded)", "EMEA via JAX", f"Arriving on {ref}", "Status", "Match Key"],
+            [46, 32, 11, 9, 9, 10, 9, 10, 40, 32], height=30)
     emea_sorted = sorted(emea, key=lambda e: (e["launch"] or dt.datetime.max, e["item"]))
     for i, e in enumerate(emea_sorted, start=5):
         for c, v in enumerate([e["project"], e["item"], e["launch"], None, e["emea"], e["direct"], e["jax"], None, None, e["key"]], start=1):
             if v is not None:
-                cell = em.cell(i, c, v); cell.font = F(color=GREY if c in (1, 2, 3, 5, 6, 7) else None)
+                cell = em.cell(i, c, v); cell.font = F(color=GREY if c <= 7 else None)
         em.cell(i, 3).number_format = DATE
         for c in (5, 6, 7): em.cell(i, c).number_format = "#,##0;\\(#,##0\\);\\-"
         em.cell(i, 4, f'=IF(C{i}="","",C{i}-ASOF)').number_format = "0;[Red]-0"
@@ -262,117 +279,152 @@ def build(pl_path, emea_path, out, npa_path=None):
 
     # ============ Allocation (main) ========================================================
     al = wb.create_sheet("Allocation", 0)
-    del wb["Sheet"]
     cues = OrderedDict()
     for ln in lines:
         if ln["type"] != "Cue":
             continue
-        a = cues.setdefault(ln["key"], dict(item=ln["item"], remarks=[]))
-        if ln["remark"] and ln["remark"] not in a["remarks"]:
-            a["remarks"].append(ln["remark"])
-    launch_of = {e["key"]: e["launch"] for e in emea}
-    launch_items = sorted([kv for kv in cues.items() if kv[0] in launch_of], key=lambda kv: (launch_of[kv[0]] or dt.datetime.max, kv[1]["item"]))
-    other_items = sorted([kv for kv in cues.items() if kv[0] not in launch_of], key=lambda kv: kv[1]["item"])
+        cues.setdefault(ln["key"], dict(item=ln["item"]))
+    plan_keys = {p["key"] for p in plan}
+    emea_keys = {e["key"] for e in emea}
+    launch_dt = {}
+    for p in plan:
+        if p["Launch Date"] and p["key"] not in launch_dt:
+            launch_dt[p["key"]] = p["Launch Date"]
+    for e in emea:
+        if e["launch"]:
+            launch_dt.setdefault(e["key"], e["launch"])
+    with_alloc = sorted([kv for kv in cues.items() if kv[0] in plan_keys or kv[0] in emea_keys],
+                        key=lambda kv: (launch_dt.get(kv[0]) or dt.datetime.max, kv[1]["item"]))
+    no_alloc = sorted([kv for kv in cues.items() if kv[0] not in plan_keys and kv[0] not in emea_keys], key=lambda kv: kv[1]["item"])
 
-    AH = ["Launch", "SKU", "Launch Date", "Days to Launch", "Arriving", "EMEA via JAX", "B2C", "Americas", "Sponsorship", "Tradeshow", "Marketing",
-          "Total to Allocate", "Left for Stock / (Short)", "Action"]
-    AW = [40, 32, 11, 9, 9, 9, 8, 9, 10, 9, 9, 10, 11, 64]
+    CH = ["EMEA via JAX", "B2C", "NA (Americas)", "Trade show", "Sponsorship", "Marketing"]
+    AH = (["Launch", "SKU", "Launch Date", "Days to Launch", "Arriving"]
+          + CH + ["Total JAX Plan", "Coverage % of Plan"]
+          + CH + ["To Stock", "Still Owed (later shipments)", "Action", "AP (excluded)", "EMEA Direct (excluded)", "Pool", "Factor", "Residual"])
+    AW = [38, 32, 11, 8, 9] + [9, 8, 9, 8, 9, 9] + [9, 9] + [9, 8, 9, 8, 9, 9] + [8, 10, 62, 8, 9, 7, 7, 7]
     NCOL = len(AH)
-    title(al, f"Packing list {ref} → Jacksonville: launch allocation by SKU",
-          f"Delivered to JAX {delivery:%m/%d/%Y} · HIE (Hamson) · {meta.get('VESSEL/VOYAGE', '')}. "
-          "Jacksonville-fulfilled channels only: EMEA via JAX (EMEA less Direct), B2C, Americas, Sponsorship, Tradeshow, Marketing. "
-          "EMEA Direct and ASIA/AP are excluded. Left for stock = arriving − total to allocate; a negative number in red is a shortfall.", NCOL)
+    # column indexes (1-based)
+    cA, cE = 5, 6                      # Arriving; first plan channel (EMEA via JAX)
+    cP = {n: cE + i for i, n in enumerate(CH)}          # plan allowances F..K
+    cTOT, cCOV = cE + 6, cE + 7                          # L, M
+    cN0 = cCOV + 1                                      # first "this shipment" channel (N)
+    cS = {n: cN0 + i for i, n in enumerate(CH)}          # N..S
+    cSTK, cOWE, cACT = cN0 + 6, cN0 + 7, cN0 + 8          # T, U, V
+    cAP, cDIR, cPOOL, cFAC, cRES = cACT + 1, cACT + 2, cACT + 3, cACT + 4, cACT + 5
+    col = lambda c, r: f"{L(c)}{r}"
 
-    # settings (top right)
-    al.cell(4, NCOL, "As-of date").font = F(size=9, color=GREY)
-    s1 = al.cell(4, NCOL + 1, "=TODAY()"); s1.number_format = DATE
-    al.cell(5, NCOL, "Urgent if days to launch ≤").font = F(size=9, color=GREY)
-    s2 = al.cell(5, NCOL + 1, 7)
+    title(al, f"Packing list {ref} → Jacksonville: how to allocate what is arriving",
+          f"Delivered to JAX {delivery:%m/%d/%Y} · HIE (Hamson) · {meta.get('VESSEL/VOYAGE', '')}. Jacksonville-fulfilled channels only: EMEA via JAX (EMEA less Direct, "
+          "from the EMEA Q4 file) + B2C, NA, Trade show, Sponsorship, Marketing (from the Launch Plan). AP and EMEA Direct are excluded. "
+          "Rule: EMEA via JAX is filled first (longest lead time); the rest of the shipment is split across the other channels in proportion to their plan allowances. "
+          "Plan fully covered → each channel gets its full allowance and the surplus goes to stock. 'Still owed' = plan not covered by this shipment.", NCOL)
+    al.cell(4, cACT, "As-of date").font = F(size=9, color=GREY)
+    s1 = al.cell(4, cACT + 1, "=TODAY()"); s1.number_format = DATE
+    al.cell(5, cACT, "Urgent if days to launch ≤").font = F(size=9, color=GREY)
+    s2 = al.cell(5, cACT + 1, 7)
     for s in (s1, s2): s.fill = INPUT; s.font = F(color="FF0000FF")
-    al.column_dimensions[L(NCOL + 1)].width = 11
-    wb.defined_names["ASOF"] = openpyxl.workbook.defined_name.DefinedName("ASOF", attr_text=f"Allocation!${L(NCOL + 1)}$4")
-    wb.defined_names["URGENT"] = openpyxl.workbook.defined_name.DefinedName("URGENT", attr_text=f"Allocation!${L(NCOL + 1)}$5")
+    wb.defined_names["ASOF"] = DefinedName("ASOF", attr_text=f"Allocation!${L(cACT + 1)}$4")
+    wb.defined_names["URGENT"] = DefinedName("URGENT", attr_text=f"Allocation!${L(cACT + 1)}$5")
 
-    # totals band (rows 4-5)
     first = 9
-    n_launch, n_other = len(launch_items), len(other_items)
-    sec2 = first + n_launch + 1          # section header row for other cues
+    sec2 = first + len(with_alloc) + 1
     first2 = sec2 + 1
-    last2 = first2 + n_other - 1
-    last_all = last2
-    def both(col):  # range covering both sections
-        return f"${col}${first}:${col}${last_all}"
-    band = [("Cue units arriving", "E"), ("EMEA via JAX", "F"), ("B2C", "G"), ("Americas", "H"), ("Sponsorship", "I"), ("Tradeshow", "J"), ("Marketing", "K"), ("Total to allocate", "L"), ("Left for stock / (short)", "M")]
-    for i, (lab, col) in enumerate(band, start=1):
+    last_all = first2 + len(no_alloc) - 1
+    both = lambda c: f"${L(c)}${first}:${L(c)}${last_all}"
+    band = [("Cue units arriving", f"=SUM({both(cA)})", NUM), ("Total JAX plan (these SKUs)", f"=SUM({both(cTOT)})", NUM),
+            ("Coverage of plan", f"=IF(SUM({both(cTOT)})=0,\"\",SUM({both(cA)})/SUM({both(cTOT)}))", "0%")] + \
+           [(f"→ {n}", f"=SUM({both(cS[n])})", NUM) for n in CH] + \
+           [("→ To stock", f"=SUM({both(cSTK)})", NUM), ("Still owed (later shipments)", f"=SUM({both(cOWE)})", NUM)]
+    for i, (lab, f, nf) in enumerate(band, start=1):
         a = al.cell(4, i, lab); a.font = F(size=9, color=GREY); a.alignment = Alignment(wrap_text=True, vertical="bottom")
-        v = al.cell(5, i, f"=SUM({both(col)})" if col != "M" else f"=SUMIF({both(col)},\"<0\")"); v.font = F(size=14, bold=True)
-        v.number_format = NUM if col != "M" else "[Red]\\(#,##0\\);[Red]\\(#,##0\\);\\-"
-    al.cell(4, 9).value = "Shortfall units (sum of negatives)"
+        v = al.cell(5, i, f); v.font = F(size=14, bold=True); v.number_format = nf
     al.row_dimensions[4].height = 26; al.row_dimensions[5].height = 22
-    al.cell(6, 1, "Channel columns B2C … Marketing fill from the NPA Import tab once the NetSuite New Product Allocations export is pasted there. Blank = not on file yet.").font = F(size=9, color=GREY)
-    al.merge_cells(start_row=6, start_column=1, end_row=6, end_column=NCOL)
+    # two-level header: group bands on row 7, column headers on row 8
+    section(al, 6, f"LAUNCH ITEMS ON THIS SHIPMENT ({len(with_alloc)} SKUs) — sorted by launch date · then other cues", NCOL)
+    groups = [(1, cA, "SHIPMENT"), (cE, cCOV, "LAUNCH PLAN ALLOWANCES — Jacksonville channels"), (cN0, cOWE, "ALLOCATE THIS SHIPMENT"), (cACT, cACT, ""), (cAP, cRES, "Excluded / workings")]
+    for a, b, txt in groups:
+        c = al.cell(7, a, txt or None); c.font = F(bold=True, size=9, color="FFFFFFFF"); c.alignment = Alignment(horizontal="center")
+        c.fill = HDR_EX if a >= cAP else PatternFill("solid", fgColor="FF2E75B6" if a == cN0 else "FF44546A")
+        if b > a: al.merge_cells(start_row=7, start_column=a, end_row=7, end_column=b)
+    hdr_row(al, 8, AH, AW, height=32, fills={**{c: HDR_EX for c in range(cAP, cRES + 1)}, **{c: PatternFill("solid", fgColor="FF2E75B6") for c in range(cN0, cOWE + 1)}})
 
-    section(al, 7, f"Q4 LAUNCH ITEMS ON THIS SHIPMENT ({n_launch} SKUs) — sorted by launch date", NCOL)
-    hdr_row(al, 8, AH, AW, height=30)
-
-    def write_row(r, k, a, is_launch):
-        al.cell(r, 1, f'=IFERROR(INDEX({EM("A")},MATCH("{k}",{EM("J")},0)),"")')
+    def write_row(r, k, a):
+        E, TOT, COV = col(cA, r), col(cTOT, r), col(cCOV, r)
+        POOL, FAC, RES = col(cPOOL, r), col(cFAC, r), col(cRES, r)
+        plan_rng = f"{col(cP['B2C'], r)}:{col(cP['Marketing'], r)}"       # the five pro-rata channels
+        al.cell(r, 1, f'=IFERROR(INDEX({PC["Project"]},MATCH("{k}",{PK},0)),IFERROR(INDEX({EM("A")},MATCH("{k}",{EM("J")},0)),""))')
         al.cell(r, 2, a["item"]).font = F(bold=True)
-        if is_launch:
-            al.cell(r, 3, f'=IFERROR(INDEX({EM("C")},MATCH("{k}",{EM("J")},0)),"")')
-        else:
-            al.cell(r, 3, f"={npa_launch(f'$B{r}')}")
+        al.cell(r, 3, f'=IFERROR(INDEX({PC["Launch Date"]},MATCH("{k}",{PK},0)),IFERROR(INDEX({EM("C")},MATCH("{k}",{EM("J")},0)),""))')
         al.cell(r, 4, f'=IF(C{r}="","",C{r}-ASOF)')
-        al.cell(r, 5, f'=SUMIFS({IBQ},{IBK},"{k}")')
-        al.cell(r, 6, f'=SUMIFS({EM("G")},{EM("J")},"{k}")')
-        for c, nm in zip(range(7, 12), ["B2C", "Americas", "Sponsorships", "Tradeshows", "Marketing"]):
-            al.cell(r, c, f"={npa_sum(nm, f'$B{r}')}")
-        al.cell(r, 12, f"=SUM(F{r}:K{r})")
-        al.cell(r, 13, f"=E{r}-L{r}")
-        al.cell(r, 14, (f'=IF(L{r}=0,"No JAX-channel allocation on file — all "&TEXT(E{r},"#,##0")&" to stock",'
-                        f'IF(M{r}<0,"SHORT "&TEXT(-M{r},"#,##0")&" — fill EMEA first, then channels; balance from on hand / next shipment",'
-                        f'IF(D{r}="","Allocate per channels; no launch date on file",'
-                        f'IF(D{r}<0,"Launch passed — distribute "&TEXT(L{r},"#,##0")&" now; "&TEXT(M{r},"#,##0")&" to stock",'
-                        f'IF(D{r}<=URGENT,"URGENT — distribute "&TEXT(L{r},"#,##0")&" within "&TEXT(D{r},"0")&" days; "&TEXT(M{r},"#,##0")&" to stock",'
-                        f'"Distribute "&TEXT(L{r},"#,##0")&" before "&TEXT(C{r},"m/d")&" ("&TEXT(D{r},"0")&" days); "&TEXT(M{r},"#,##0")&" to stock")))))'))
+        al.cell(r, cA, f'=SUMIFS({IBQ},{IBK},"{k}")')
+        al.cell(r, cP["EMEA via JAX"], f'=SUMIFS({EM("G")},{EM("J")},"{k}")')
+        for n, src in [("B2C", "B2C"), ("NA (Americas)", "NA"), ("Trade show", "Trade show"), ("Sponsorship", "Sponsorship"), ("Marketing", "Marketing")]:
+            al.cell(r, cP[n], f'=SUMIFS({PC[src]},{PK},"{k}")')
+        al.cell(r, cTOT, f"=SUM({col(cE, r)}:{col(cP['Marketing'], r)})")
+        al.cell(r, cCOV, f'=IF({TOT}=0,"",{E}/{TOT})')
+        # workings
+        al.cell(r, cPOOL, f"={E}-{col(cS['EMEA via JAX'], r)}")
+        al.cell(r, cFAC, f"=IF(SUM({plan_rng})=0,0,MIN(1,{POOL}/SUM({plan_rng})))")
+        al.cell(r, cRES, f"=IF(AND({FAC}<1,SUM({plan_rng})>0),{POOL}-SUMPRODUCT(INT({plan_rng}*{FAC})),0)")
+        # this shipment
+        al.cell(r, cS["EMEA via JAX"], f"=MIN({col(cP['EMEA via JAX'], r)},{E})")
+        for pos, n in enumerate(["B2C", "NA (Americas)", "Trade show", "Sponsorship", "Marketing"], start=1):
+            P = col(cP[n], r)
+            al.cell(r, cS[n], f"=INT({P}*{FAC})+IF(AND({FAC}<1,MATCH(MAX({plan_rng}),{plan_rng},0)={pos}),{RES},0)")
+        now_rng = f"{col(cS['EMEA via JAX'], r)}:{col(cS['Marketing'], r)}"
+        al.cell(r, cSTK, f"={E}-SUM({now_rng})")
+        al.cell(r, cOWE, f"={TOT}-SUM({now_rng})")
+        al.cell(r, cAP, f'=SUMIFS({PC["AP"]},{PK},"{k}")')
+        al.cell(r, cDIR, f'=SUMIFS({EM("F")},{EM("J")},"{k}")')
+        D, C, STK, OWE = f"D{r}", f"C{r}", col(cSTK, r), col(cOWE, r)
+        urg = f'IF({D}="","",IF({D}<0,"LAUNCH PASSED — ",IF({D}<=URGENT,"URGENT ("&TEXT({D},"0")&" days) — ","")))'
+        al.cell(r, cACT, (f'={urg}&IF({TOT}=0,"No Jacksonville allocation on file — all "&TEXT({E},"#,##0")&" to stock",'
+                          f'IF({OWE}>0,"Covers "&TEXT({COV},"0%")&" of plan — distribute all "&TEXT({E},"#,##0")&" as shown (EMEA first, rest pro-rata); "&TEXT({OWE},"#,##0")&" still owed on later shipments",'
+                          f'"Plan covered — distribute "&TEXT({TOT},"#,##0")&" per allowances; "&TEXT({STK},"#,##0")&" to stock"))'))
         for c in range(1, NCOL + 1):
             cell = al.cell(r, c)
-            if c != 2: cell.font = F()
+            if c != 2: cell.font = F(color=GREY if c >= cAP else None)
             if c == 3: cell.number_format = DATE
             if c == 4: cell.number_format = "0;[Red]-0"
-            if 5 <= c <= 13: cell.number_format = NUM
-            if c == 14: cell.alignment = Alignment(wrap_text=True, vertical="center")
+            if c == cCOV: cell.number_format = "0%"
+            elif c == cFAC: cell.number_format = "0.00"
+            elif c >= 5 and c != cACT: cell.number_format = NUM
+            if c == cACT: cell.alignment = Alignment(wrap_text=True, vertical="center")
             cell.border = Border(bottom=THIN)
-        al.row_dimensions[r].height = 26
+        al.row_dimensions[r].height = 28
 
-    for i, (k, a) in enumerate(launch_items):
-        write_row(first + i, k, a, True)
-    section(al, sec2, f"OTHER CUES ON THIS SHIPMENT ({n_other} SKUs) — no Q4 EMEA launch allocation on file; channel columns fill from NPA Import if present", NCOL)
-    for i, (k, a) in enumerate(other_items):
-        write_row(first2 + i, k, a, False)
+    for i, (k, a) in enumerate(with_alloc):
+        write_row(first + i, k, a)
+    section(al, sec2, f"OTHER CUES ON THIS SHIPMENT ({len(no_alloc)} SKUs) — not in the launch plan or the EMEA file; all units to stock", NCOL)
+    for i, (k, a) in enumerate(no_alloc):
+        write_row(first2 + i, k, a)
     tot = last_all + 1
     al.cell(tot, 2, "TOTAL — all cues").font = F(bold=True)
-    for c in range(5, 14):
-        x = al.cell(tot, c, f"=SUM({L(c)}{first}:{L(c)}{last_all})"); x.font = F(bold=True); x.number_format = NUM
+    for c in list(range(cA, cCOV)) + list(range(cN0, cOWE + 1)) + [cAP, cDIR]:
+        x = al.cell(tot, c, f"=SUM({L(c)}{first}:{L(c)}{last_all})"); x.font = F(bold=True, color=GREY if c >= cAP else None); x.number_format = NUM
+    x = al.cell(tot, cCOV, f'=IF({L(cTOT)}{tot}=0,"",{L(cA)}{tot}/{L(cTOT)}{tot})'); x.font = F(bold=True); x.number_format = "0%"
     al.freeze_panes = "C9"
     rng = lambda c: f"{L(c)}{first}:{L(c)}{last_all}"
-    al.conditional_formatting.add(rng(13), CellIsRule(operator="lessThan", formula=["0"], fill=RED, font=Font(color="FFB3261E", bold=True)))
     al.conditional_formatting.add(rng(4), CellIsRule(operator="lessThan", formula=["0"], fill=RED, font=Font(color="FFB3261E", bold=True)))
     al.conditional_formatting.add(rng(4), FormulaRule(formula=[f"AND(ISNUMBER(D{first}),D{first}>=0,D{first}<=URGENT)"], fill=AMB))
-    al.conditional_formatting.add(rng(6), CellIsRule(operator="greaterThan", formula=["0"], fill=GRN))
-    for c in range(7, 12):
-        al.conditional_formatting.add(rng(c), CellIsRule(operator="greaterThan", formula=["0"], fill=GRN))
-    al.conditional_formatting.add(rng(14), FormulaRule(formula=[f'LEFT(N{first},5)="SHORT"'], font=Font(color="FFB3261E", bold=True)))
-    al.conditional_formatting.add(rng(14), FormulaRule(formula=[f'OR(LEFT(N{first},6)="URGENT",LEFT(N{first},6)="Launch")'], font=Font(color="FFB26A00", bold=True)))
+    al.conditional_formatting.add(rng(cCOV), FormulaRule(formula=[f"AND(ISNUMBER({L(cCOV)}{first}),{L(cCOV)}{first}<0.5)"], fill=RED))
+    al.conditional_formatting.add(rng(cCOV), FormulaRule(formula=[f"AND(ISNUMBER({L(cCOV)}{first}),{L(cCOV)}{first}>=0.5,{L(cCOV)}{first}<1)"], fill=AMB))
+    al.conditional_formatting.add(rng(cCOV), FormulaRule(formula=[f"AND(ISNUMBER({L(cCOV)}{first}),{L(cCOV)}{first}>=1)"], fill=GRN))
+    for c in range(cN0, cN0 + 6):
+        al.conditional_formatting.add(rng(c), CellIsRule(operator="greaterThan", formula=["0"], fill=GRN, font=Font(bold=True)))
+    al.conditional_formatting.add(rng(cOWE), CellIsRule(operator="greaterThan", formula=["0"], font=Font(color="FFB3261E")))
+    al.conditional_formatting.add(rng(cACT), FormulaRule(formula=[f'OR(LEFT({L(cACT)}{first},6)="URGENT",LEFT({L(cACT)}{first},6)="LAUNCH")'], font=Font(color="FFB26A00", bold=True)))
+    al.column_dimensions.group(L(cPOOL), L(cRES), hidden=True)
     others = [ln for ln in lines if ln["type"] != "Cue"]
-    al.cell(tot + 2, 1, f"Not allocated: {len(others)} non-cue lines ({sum(l['qty'] for l in others):,} units — samples and one shaft), listed on the Inbound {ref} tab. "
-            f"EMEA Q4 launch items that are NOT on this shipment are listed on the EMEA Q4 tab (red status).").font = F(size=9, color=GREY)
+    al.cell(tot + 2, 1, f"Not allocated: {len(others)} non-cue lines ({sum(l['qty'] for l in others):,} units — samples and one shaft) on the Inbound {ref} tab. "
+            "EMEA launch items NOT on this shipment: EMEA Q4 tab, red status. Grey columns at the right are excluded from the allocation (AP, EMEA Direct); "
+            "Pool / Factor / Residual are the pro-rata workings (grouped, click + to expand).").font = F(size=9, color=GREY)
     al.merge_cells(start_row=tot + 2, start_column=1, end_row=tot + 2, end_column=NCOL)
 
-    wb._sheets = [wb["Allocation"], wb["EMEA Q4"], wb["NPA Import"], wb[f"Inbound {ref}"]]
+    wb._sheets = [wb["Allocation"], wb["EMEA Q4"], wb["Launch Plan"], wb[f"Inbound {ref}"]]
     wb.save(out)
-    print(f"wrote {out}: {n_launch} launch SKUs + {n_other} other cues, {len(lines)} lines, {len(emea)} EMEA rows, {len(npa)} NPA rows")
+    print(f"wrote {out}: {len(with_alloc)} launch SKUs + {len(no_alloc)} other cues, {len(lines)} lines, {len(emea)} EMEA rows, {len(plan)} plan rows")
 
 
 if __name__ == "__main__":
-    build(sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4] if len(sys.argv) > 4 else None)
+    build(*sys.argv[1:5])
