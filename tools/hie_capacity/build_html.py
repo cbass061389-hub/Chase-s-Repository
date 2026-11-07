@@ -5,6 +5,14 @@ D = os.path.dirname(os.path.abspath(__file__))
 OUT = '/home/user/Chase-s-Repository/reports/HIE_Capacity_Actuals.html'
 m = json.load(open(os.path.join(D, 'metrics.json')))
 cp = os.path.join(D, '..', 'cost', 'cost.json')
+pp = os.path.join(D, '..', 'pi', 'pi_summary.json')
+if os.path.exists(pp):
+    import csv as _csv
+    ps = json.load(open(pp))
+    cl = list(_csv.DictReader(open(os.path.join(D, '..', 'pi', 'cancel_lines.tsv'), encoding='utf-8', errors='replace'), delimiter='\t'))
+    m['pi'] = {'s': {k: ps[k] for k in ps if k != 'files'},
+               'cancel': [{k: (r.get(k) or '')[:220] for k in ('received_utc', 'action', 'po', 'item', 'qty_before', 'qty_after_or_cancelled',
+                                                               'requested_by', 'hie_response', 'reason_quote', 'cost_or_charge_mentioned')} for r in cl]}
 if os.path.exists(cp):
     c = json.load(open(cp)); m['cost'] = {k: c[k] for k in ('meta', 'yoy', 'index', 'lines', 'skus', 'spread')}
 k = m['kpi']
@@ -44,6 +52,7 @@ th:first-child,td:first-child,th.l,td.l{text-align:left}tr:hover td{background:v
 .bad{color:var(--crit);font-weight:600}.ok{color:var(--good)}.mut{color:var(--muted)}
 .note{font-size:12.5px;color:var(--ink2)}.note li{margin:3px 0}
 .tag{display:inline-block;font-size:11px;padding:1px 6px;border-radius:9px;border:1px solid var(--rule);color:var(--ink2)}
+.wrapc{white-space:normal;width:300px;text-align:left;font-size:12px;line-height:1.35}#t-can td{vertical-align:top}
 .tabs{display:flex;gap:6px;margin:0 0 10px}
 </style></head><body><div class="wrap">
 <h1>HIE Capacity Actuals</h1>
@@ -68,8 +77,15 @@ th:first-child,td:first-child,th.l,td.l{text-align:left}tr:hover td{background:v
 </div>
 
 
+
+<div class="card" id="picard"><h2>What HIE committed on its PIs</h2>
+<p class="cap">From HIE's own PI confirmations and monthly pending order lists in your mailbox. Each PO line's commitment is the PI date on HIE's first quote; later re-dates and re-prices are tracked as revisions.</p>
+<div class="kpis" id="pik" style="margin-bottom:8px"></div>
+<h2 style="margin-top:10px">Price changes HIE made after quoting</h2><p class="cap">Same PO line, first quote vs latest quote.</p><div class="tw" style="max-height:260px"><table id="t-req"></table></div></div>
+<div class="card"><h2>Cancellations, reductions and holds</h2><p class="cap">PO changes found in HIE threads. HIE's response and any charge it asked for are quoted from the email.</p><div class="tw" style="max-height:460px"><table id="t-can"></table></div></div>
+
 <div class="card" id="costcard"><h2>HIE price changes year over year</h2>
-<p class="cap">HIE's own unit price per SKU per PO, from the weekly warehouse inventory list. Year = when the PO was placed. Change is measured SKU by SKU on items bought in both years, weighted by units, so mix shifts don't distort it. $ impact = price change × units ordered that year.</p>
+<p class="cap">HIE's quoted unit price per SKU per PO (PI confirmations and pending order lists; warehouse inventory list where no quote was found). Year = when HIE quoted the PO. Change is measured SKU by SKU on items bought in both years, weighted by units, so mix shifts don't distort it. $ impact = price change × units ordered that year.</p>
 <div class="kpis" id="costk" style="margin-bottom:8px"></div>
 <div class="grid2"><div><div id="ch-yoy"></div></div><div class="tw" style="max-height:300px"><table id="t-yoy"></table></div></div></div>
 <div class="card"><h2>Price change by product line</h2><p class="cap">Unit-weighted % change vs prior year; $ = extra (or saved) cost on that year's units.</p><div class="tw"><table id="t-cl"></table></div></div>
@@ -93,8 +109,8 @@ th:first-child,td:first-child,th.l,td.l{text-align:left}tr:hover td{background:v
 const M = __DATA__;
 const K = M.kpi;
 const fmt = n => n==null||n===''?'–':Math.round(n).toLocaleString('en-US');
-const usd = n => n==null?'–':(Math.abs(n)>=1e6?'$'+(n/1e6).toFixed(2)+'M':Math.abs(n)>=1e3?'$'+(n/1e3).toFixed(0)+'K':'$'+Math.round(n));
-const usdF = n => n==null?'–':'$'+Math.round(n).toLocaleString('en-US');
+const usd = n => {if(n==null)return '–';const s=n<0?'-$':'$',a=Math.abs(n);return a>=1e6?s+(a/1e6).toFixed(2)+'M':a>=1e3?s+(a/1e3).toFixed(0)+'K':s+Math.round(a)};
+const usdF = n => n==null?'–':(n<0?'-$':'$')+Math.abs(Math.round(n)).toLocaleString('en-US');
 const css = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
 const mlab = s => {const [y,m]=s.split('-');return ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][+m-1]+' '+y.slice(2)};
 const dlab = s => {const d=new Date(s+'T00:00');return d.toLocaleDateString('en-US',{month:'short',day:'numeric',year:'2-digit'})};
@@ -112,6 +128,9 @@ const story = [
  `<b>${worstL.line} carries the most late revenue</b> (${usd(worstL.late_rev)}). Lines with the longest average slip: ${M.pl.filter(p=>p.avg_slip!=null&&p.made>500).sort((a,b)=>b.avg_slip-a.avg_slip).slice(0,3).map(p=>`${p.line} ${Math.round(p.avg_slip)}d`).join(', ')}.`,
  `<b>Capacity:</b> HIE has averaged ${fmt(K.avg_week_all)} units/week across the period and ${fmt(K.avg_week_recent)}/week over the last three full months. Rejects run ${K.rej_rate}% of output (${fmt(K.rej_units)} units B-grade or defect).`,
 ];
+if(M.cost){const C=M.cost,ix=C.index,big=[...C.yoy].sort((a,b)=>b.wpct-a.wpct)[0],tot=C.yoy.reduce((a,r)=>a+r.impact,0);
+ story.push(`<b>HIE's prices are up ${(ix[ix.length-1].index-100).toFixed(1)}% since ${ix[0].year}</b> on the same SKUs (unit-weighted), costing about ${usd(tot)} extra on what we bought. Biggest step: ${big.from}→${big.to} at +${big.wpct.toFixed(1)}%; ${C.yoy[C.yoy.length-1].from}→${C.yoy[C.yoy.length-1].to} was flat.`)}
+if(M.pi){story.push(`<b>HIE commits later than we ask on ${M.pi.s.pi_later_than_request_pct}% of PO lines</b> before production even starts, re-dated ${fmt(M.pi.s.pi_redated_later_lines)} lines later after quoting, and refused several cancellations while charging for leftover material (see Cancellations).`)}
 document.getElementById('story').innerHTML = story.map(s=>`<li>${s}</li>`).join('');
 const kp = [
  [K.ontime_units_pct+'%','Units on time','within '+K.grace+'d of PI date'],
@@ -214,6 +233,25 @@ const odS={s:8,d:-1};odS.render=()=>{const q=document.getElementById('q2').value
 document.getElementById('q2').addEventListener('input',odS.render);odS.render();
 
 
+
+// ---------- PI section
+if(M.pi){const S=M.pi.s;
+ document.getElementById('pik').innerHTML=[
+  [fmt(S.pos),'POs with HIE PI / pending-list quote',fmt(S.po_lines)+' PO lines · '+fmt(S.skus)+' SKUs'],
+  [S.pi_later_than_request_pct+'%','Lines HIE committed later than we asked','PI date >7 days after our request date'],
+  [fmt(S.pi_redated_later_lines),'PO lines HIE re-dated later','latest PI date later than first quote'],
+  [fmt(S.requotes),'PO lines re-priced after quote','see table'],
+  [fmt(S.cancel_rows),'Cancellation / change records','see table below']
+ ].map(([v,l,n])=>`<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div><div class="n">${n}</div></div>`).join('');
+ const rq=S.requote_examples||[];const rqc=[{h:'PO',v:r=>r.po,l:1},{h:'SKU',v:r=>r.item,l:1},{h:'First quote',v:r=>r.from,f:r=>'$'+(+r.from).toFixed(2)},{h:'Latest quote',v:r=>r.to,f:r=>'$'+(+r.to).toFixed(2)},{h:'Change',v:r=>r.pct,f:r=>(r.pct>0?'+':'')+r.pct+'%',cls:r=>r.pct>0?'bad':''}];
+ const rqS={s:4,d:-1};rqS.render=()=>table('t-req',rqc,rq,rqS);rqS.render();
+ const cc=[{h:'Date',v:r=>r.received_utc,f:r=>r.received_utc?dlab(r.received_utc.slice(0,10)):'–',l:1},{h:'Action',v:r=>r.action,l:1},{h:'PO',v:r=>r.po,l:1},{h:'Item',v:r=>r.item,l:1},
+  {h:'Qty before',v:r=>r.qty_before,l:1},{h:'Cancelled / after',v:r=>r.qty_after_or_cancelled,l:1},{h:'Requested by',v:r=>r.requested_by,l:1},
+  {h:'HIE response',v:r=>r.hie_response,l:1,cls:r=>/reject/i.test(r.hie_response)?'bad':''},{h:'Quote',v:r=>r.reason_quote,l:1,f:r=>`<div class="wrapc">${r.reason_quote}</div>`},
+  {h:'Charge asked',v:r=>r.cost_or_charge_mentioned,l:1,f:r=>`<div class="wrapc ${r.cost_or_charge_mentioned?'bad':''}">${r.cost_or_charge_mentioned||''}</div>`}];
+ const cS={s:0,d:-1};cS.render=()=>table('t-can',cc,M.pi.cancel,cS);cS.render();
+} else {document.getElementById('picard').style.display='none'}
+
 // ---------- cost section
 if(M.cost){const C=M.cost;const Y=C.yoy;const pct=v=>v==null?'–':(v>0?'+':'')+v.toFixed(1)+'%';
  const last=Y[Y.length-1]||{};const tot=Y.reduce((a,r)=>a+r.impact,0);const idx=C.index[C.index.length-1];
@@ -229,7 +267,7 @@ if(M.cost){const C=M.cost;const Y=C.yoy;const pct=v=>v==null?'–':(v>0?'+':'')+
   for(let i=0;i<=4;i++){const v=lo+(hi-lo)*i/4;el('line',{x1:pad.l,x2:W-pad.r,y1:y(v),y2:y(v),class:'gridl'},s);const t=el('text',{x:pad.l-6,y:y(v)+3.5,'text-anchor':'end'},s);t.textContent=v.toFixed(0)}
   const x=i=>pad.l+(W-pad.l-pad.r)*(D.length>1?i/(D.length-1):.5);el('path',{d:D.map((r,i)=>(i?'L':'M')+x(i)+','+y(r.index)).join(''),fill:'none',stroke:'var(--s1)','stroke-width':2},s);
   D.forEach((r,i)=>{const c=el('circle',{cx:x(i),cy:y(r.index),r:5,fill:'var(--s1)',stroke:'var(--surface)','stroke-width':2},s);const t=el('text',{x:x(i),y:H-pad.b+14,'text-anchor':'middle'},s);t.textContent=r.year;
-   const lb=el('text',{x:x(i),y:y(r.index)-10,'text-anchor':'middle'},s);lb.textContent=r.index.toFixed(1);
+   const lb=el('text',{x:x(i)+(i===0?14:0),y:y(r.index)-10,'text-anchor':'middle'},s);lb.textContent=r.index.toFixed(1);
    const hit=el('circle',{cx:x(i),cy:y(r.index),r:16,fill:'transparent'},s);const yy=Y.find(q=>q.to===r.year);hit.addEventListener('mousemove',e=>showTip(e,`<b>${r.year}</b>${row('HIE price index',r.index.toFixed(1))}${yy?row('vs prior year',pct(yy.wpct))+row('$ impact',usdF(yy.impact)):''}`));hit.addEventListener('mouseleave',hideTip)});
   const t=el('text',{x:pad.l,y:H-2},s);t.textContent='HIE price index, '+D[0].year+' = 100'})();
  const ycols=[{h:'Years',v:r=>r.from+'→'+r.to,l:1},{h:'SKUs',v:r=>r.skus},{h:'Units',v:r=>r.units,f:r=>fmt(r.units)},{h:'Weighted %',v:r=>r.wpct,f:r=>pct(r.wpct),cls:r=>r.wpct>0.5?'bad':''},{h:'Median %',v:r=>r.median_pct,f:r=>pct(r.median_pct)},{h:'Up / flat / down',v:r=>r.up,f:r=>`${r.up} / ${r.flat} / ${r.down}`},{h:'$ impact',v:r=>r.impact,f:r=>usdF(r.impact)}];
@@ -251,11 +289,11 @@ if(M.cost){const C=M.cost;const Y=C.yoy;const pct=v=>v==null?'–':(v>0?'+':'')+
 const gaps=K.gaps.map(g=>`${dlab(g[0])} → ${dlab(g[1])} (${g[2]}d)`).join('; ');
 document.getElementById('method').innerHTML=[
  `<b>Source:</b> every "Predator open order list" attached to HIE's Weekly reports email (Lydia, sal1_07@hamsonint.com), ${dlab(K.first)} – ${dlab(K.last)}, ${K.n_reports} reports. Each row is one PO delivery line: order qty, PI date, scheduled finish, shipped / packing / warehouse, B-grade, defect, online (in production).`,
- `<b>Commitment = original PI date</b> — the date on HIE's proforma invoice the first time the line appeared. HIE's "Scheduled Finished Date" is its internal plan and often sits months after the PI date, and "Actually Finished Date" holds a forecast on open lines, so neither is used as the commitment. Finish = the report where the full line quantity was through production (or HIE's actual-finish date once the line is complete).`,
+ `<b>Commitment = original PI date</b> — taken from HIE's first PI confirmation (or monthly pending order list) in your mailbox where one exists (${fmt(M.pi?M.pi.s.po_lines:0)} PO lines); otherwise the PI date the first time the line appeared on the open order list. The two agree exactly on 77% of matched lines; where they differ, HIE had usually already pushed the date before the order reached the list. HIE's "Scheduled Finished Date" is its internal plan and often sits months after the PI date, and "Actually Finished Date" holds a forecast on open lines, so neither is used as the commitment. Finish = the report where the full line quantity was through production (or HIE's actual-finish date once the line is complete).`,
  `<b>Slip</b> = finish − original PI date. On time = within ${K.grace} days. Lines already finished when first seen, and lines that vanished with nothing produced (cancelled or re-split by HIE), are excluded from slip. ${fmt(K.n_fin)} finished lines are measured.`,
  `<b>Output</b> = week-over-week increase in good + rejects per PO line. Intervals with missing reports are spread evenly across their days.`,
  `<b>Revenue</b> = units × selling price. Price = average open sales-order rate for the SKU (${K.priced_skus} SKUs); otherwise NetSuite average cost × that product line's median price-to-cost ratio (${K.cost_skus} SKUs, marked * in the SKU table); HIE codes not in NetSuite take the median price of their closest SKU family (${K.family_skus} SKUs, e.g. BCP PRE BK RUSH …); anything still unmatched uses the overall median ${usdF(K.fallback_price)} (${K.unpriced_skus} SKUs). "Late revenue" is value delivered late, not proven lost sales — that needs Jacksonville stock-out history.`,
- `<b>Price changes:</b> HIE unit price per SKU and PO from the weekly 'Predator warehouse inventory list' (regular inventory sheet). PO year = first appearance on the open order list; POs already open in Jun 2023 are dated from their PO number. PO 7666 (HIE overstock bucket) excluded. YoY compares the same SKU across consecutive years, unit-weighted; index is chain-linked.`,
+ `<b>Price changes:</b> HIE's quoted unit price per SKU and PO — from its PI confirmations and pending order lists where available, otherwise the unit price on the weekly 'Predator warehouse inventory list'. PO year = HIE's quote date; POs without a quote are dated from their PO number (PO numbers are sequential) interpolated between quoted POs. PO 7666 (HIE overstock bucket) excluded. YoY compares the same SKU across consecutive years, unit-weighted; index is chain-linked.`,
  `<b>Report gaps</b> (no weekly file found): ${gaps||'none'}.`,
 ].map(s=>`<li>${s}</li>`).join('');
 </script></body></html>"""

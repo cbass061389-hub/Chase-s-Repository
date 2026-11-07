@@ -78,8 +78,17 @@ for r in ool:
     if key not in seen_line:          # count each delivery line once
         seen_line.add(key)
         order_qty[(po, norm(r['item']))] += f(r['order_qty']) or 0
-dated = sorted((int(p), datetime.strptime(d, '%Y-%m-%d').date()) for p, d in first_seen.items()
-               if p.isdigit() and d > first_rep and 9000 < int(p) < 20000)
+# Anchors: HIE quote date of each PI-quoted PO (earliest quote) - real dates, unlike open-order-list sightings
+anchors = {}
+_pif = os.path.join(D, '..', 'pi', 'pi_prices.csv')
+if os.path.exists(_pif):
+    for q in csv.DictReader(open(_pif, encoding='utf-8')):
+        if q['po'].isdigit() and 9000 < int(q['po']) < 20000 and q['quote_date']:
+            d0 = datetime.strptime(q['quote_date'], '%Y-%m-%d').date()
+            anchors[int(q['po'])] = min(anchors.get(int(q['po']), d0), d0)
+dated = sorted(anchors.items()) if len(anchors) > 20 else sorted(
+    (int(p), datetime.strptime(d, '%Y-%m-%d').date()) for p, d in first_seen.items()
+    if p.isdigit() and d > first_rep and 9000 < int(p) < 20000)
 # monotone smoothing: running max of dates along PO number
 mono, last = [], date(2000, 1, 1)
 for p, d in dated:
@@ -92,11 +101,11 @@ intercept = my - slope * mx
 
 
 def po_date(po):
-    if not po.isdigit():
+    if not po.isdigit() or not (9000 < int(po) < 20000):
         return None, 'n/a'
     p = int(po)
-    if po in first_seen and first_seen[po] > first_rep:
-        return datetime.strptime(first_seen[po], '%Y-%m-%d').date(), 'First on open order list'
+    if p in anchors:
+        return anchors[p], 'HIE quote date'
     if xs[0] <= p <= xs[-1]:
         for (p0, d0), (p1, d1) in zip(mono, mono[1:]):
             if p0 <= p <= p1:
@@ -123,9 +132,35 @@ for (sku, po), e in sp.items():
                  'year': pd_.year if pd_ else None, 'date_basis': basis, 'units': round(oq),
                  'units_basis': 'PO order qty (open order list)' if order_qty.get((po, sku)) else 'Max qty seen in warehouse',
                  'wh_first': e['first'], 'wh_last': e['last']})
+# ---------------- HIE PI quotes override warehouse prices (quote date = PO placement)
+pif = os.path.join(D, '..', 'pi', 'pi_prices.csv')
+n_pi = 0
+if os.path.exists(pif):
+    have = {(r['sku'], r['po']): r for r in rows}
+    for q in csv.DictReader(open(pif, encoding='utf-8')):
+        p = f(q['price'])
+        if not p or p <= 0:
+            continue
+        sku, po = norm(q['sku']), q['po']
+        try:
+            qd = datetime.strptime(q['quote_date'], '%Y-%m-%d').date()
+        except ValueError:
+            continue
+        units = f(q['units']) or 0
+        rec = {'sku': sku, 'po': po, 'price': round(p, 2), 'n_prices': 1, 'po_date': str(qd), 'year': qd.year,
+               'date_basis': 'HIE quote date (' + q['source'] + ')', 'units': round(order_qty.get((po, sku)) or units),
+               'units_basis': 'PO order qty (open order list)' if order_qty.get((po, sku)) else 'PI qty',
+               'wh_first': '', 'wh_last': '', 'price_source': 'HIE PI' if q['source'] == 'PI' else 'HIE pending list'}
+        old = have.get((sku, po))
+        if old:
+            rec['wh_price'] = old['price']; rec['wh_first'] = old['wh_first']; rec['wh_last'] = old['wh_last']
+            rows.remove(old)
+        rows.append(rec); n_pi += 1
+for r in rows:
+    r.setdefault('price_source', 'Warehouse list'); r.setdefault('wh_price', r['price'] if r['price_source'] == 'Warehouse list' else '')
 rows.sort(key=lambda r: (r['sku'], r['po_date']))
 with open(os.path.join(D, 'po_prices.csv'), 'w', newline='', encoding='utf-8') as fo:
-    w = csv.DictWriter(fo, list(rows[0].keys())); w.writeheader(); w.writerows(rows)
+    w = csv.DictWriter(fo, sorted({k for r in rows for k in r})); w.writeheader(); w.writerows(rows)
 
 # ---------------- product line lookup (reuse capacity pricing categories)
 cat = {}
@@ -175,7 +210,9 @@ years = [y for y in years if pair_years and y >= pair_years[0]]
 index = [{'year': years[0], 'index': 100.0}] if years else []
 for a, b in zip(years, years[1:]):
     P = [p for p in pairs if p['from'] == a and p['to'] == b]
-    if not P:
+    if len(P) < 5:            # too few SKUs bought in both years to call it a trend
+        if index and index[-1]['year'] == a and len(index) == 1:
+            index = [{'year': b, 'index': 100.0}]
         continue
     wsum = sum(p['units'] for p in P)
     wpct = sum(p['pct'] * p['units'] for p in P) / wsum if wsum else 0
@@ -223,7 +260,8 @@ for s in yr:
 spread.sort(key=lambda r: -r['pct'])
 
 out = {'meta': {'n_obs': len(obs), 'n_files': len(glob.glob(os.path.join(D, 'wh_raw', '*.txt'))),
-                'n_sku_po': len(rows), 'n_skus': len(yr), 'years': years,
+                'n_sku_po': len(rows), 'n_skus': len(yr), 'years': years, 'n_pi_prices': n_pi,
+                'price_source_counts': {k: sum(1 for r in rows if r['price_source'] == k) for k in ('HIE PI', 'HIE pending list', 'Warehouse list')},
                 'po_slope_days_per_po': round(slope, 3),
                 'basis_counts': {b: sum(1 for r in rows if r['date_basis'] == b) for b in {r['date_basis'] for r in rows}}},
        'yoy': yoy, 'index': index, 'lines': line_rows, 'skus': sku_rows, 'pairs': pairs, 'spread': spread[:200]}

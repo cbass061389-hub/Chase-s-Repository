@@ -105,8 +105,25 @@ for rd in reports:
     cur = nxt
 
 first_rep, last_rep = reports[0], reports[-1]
+_pf = os.path.join(D, '..', 'pi', 'pi_first_dates.json')
+PI_FIRST = json.load(open(_pf)) if os.path.exists(_pf) else {}
+_grp = defaultdict(list)
 for lid, L in lines.items():
-    if L.get('orig_pi'):
+    _grp[(L['po'], ' '.join(L['item'].upper().split()))].append(lid)
+for key, lids in _grp.items():
+    pf = PI_FIRST.get(key[0] + '|' + key[1])
+    if not pf:
+        continue
+    lids.sort(key=lambda i: (lines[i].get('orig_pi') or lines[i].get('sched_fallback') or date(2100, 1, 1), lines[i]['first_rd']))
+    for rank, i in enumerate(lids):
+        if rank < len(pf):
+            lines[i]['ool_pi'] = lines[i].get('orig_pi')
+            lines[i]['orig_pi'] = datetime.strptime(pf[rank], '%Y-%m-%d').date()
+            lines[i]['pi_basis'] = 'HIE PI email (first quote)'
+for lid, L in lines.items():
+    if L.get('pi_basis') == 'HIE PI email (first quote)':
+        pass
+    elif L.get('orig_pi'):
         L.setdefault('pi_basis', 'PI date')
     elif L.get('sched_fallback'):
         L['orig_pi'] = L['sched_fallback']; L['pi_basis'] = 'Sched finish + 14d'
@@ -180,7 +197,7 @@ json.dump({'reports': [str(x) for x in reports]}, open(os.path.join(D, 'reports.
 with open(os.path.join(D, 'lines_tracked.csv'), 'w', newline='', encoding='utf-8') as fo:
     cols = ['lid', 'po', 'item', 'sheet', 'first_rd', 'last_rd', 'order_qty', 'orig_pi', 'orig_sched', 'pi', 'sched',
             'finish', 'slip', 'resched', 'good', 'bgrade', 'defect', 'makeup', 'online', 'closed', 'observed_open',
-            'days_overdue_now', 'dropped', 'pi_basis']
+            'days_overdue_now', 'dropped', 'pi_basis', 'ool_pi']
     w = csv.writer(fo); w.writerow(cols)
     for lid, L in lines.items():
         w.writerow([lid] + [L.get(c) for c in cols[1:]])

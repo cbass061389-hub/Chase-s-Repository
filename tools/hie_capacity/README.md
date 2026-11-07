@@ -22,8 +22,13 @@ Key rules (see the report's "How this was built"):
 
 Raw attachment text and intermediate CSVs are not committed (supplier data, ~15 MB).
 
-## HIE price changes (in progress)
-`cost.py` reads weekly "Predator warehouse inventory list" text dumps (`wh_raw/*.txt`: ITEM# | PO# | QTY | Unit Price)
-plus `../cap/ool_lines.csv` and `../cap/prices.csv`, dates each PO from its first appearance on the open order list
-(older POs from PO number), and writes `po_prices.csv` and `cost.json` (unit-weighted, chain-linked YoY price index;
-$ impact = price change x units ordered). `build_html.py` adds the price section when `cost.json` is present.
+## HIE PI ledger and price changes
+- `pi_ledger.py` merges parsed HIE PI confirmations and monthly "Pending order list" lines (`../pi/pi_lines_*.tsv`) into
+  `pi_ledger.csv` (first and latest quote per PO line), `pi_prices.csv` (quoted price per SKU/PO) and
+  `pi_first_dates.json` (PI dates on HIE's first quote). `analyze.py` uses those dates as the commitment where available.
+- `cost.py` builds the per-SKU, per-PO price history: HIE's quoted price first, warehouse-list price as fallback. PO year =
+  HIE quote date; unquoted POs are dated by PO number interpolated between quoted POs. Output `cost.json`: unit-weighted,
+  chain-linked YoY index (years with <5 comparable SKUs skipped) and $ impact = price change x units ordered.
+- `cancel_lines.tsv` (cancellations, reductions, holds, HIE responses and charges) is rendered as-is.
+
+Run order: `pi_ledger.py` -> `parse_ool.py` -> `analyze.py` -> `metrics.py` -> `cost.py` -> `build_html.py`.
