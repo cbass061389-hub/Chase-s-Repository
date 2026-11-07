@@ -70,6 +70,11 @@ for (po, item), rs in by.items():
     last = [r for r in pis if r['recv'] == last_recv]
     p_first = [r['price'] for r in first if r['price']]
     p_last = [r['price'] for r in last if r['price']]
+    if not p_last:      # latest quote may be N/A; use the latest quote that carries a price
+        priced = [r for r in pis if r['price']]
+        if priced:
+            lr = max(r['recv'] or date(1900, 1, 1) for r in priced)
+            p_last = [r['price'] for r in priced if r['recv'] == lr]
     q_first = sum(r['qty'] or 0 for r in first)
     pi_first = [r['pi'] for r in first if r['pi']]
     req_first = [r['req'] for r in first if r['req']]
@@ -83,6 +88,7 @@ for (po, item), rs in by.items():
         'req_first_min': str(min(req_first)) if req_first else '',
         'pi_minus_req_days': round(statistics.mean(gaps)) if gaps else None,
         'pi_last_max': str(max([r['pi'] for r in last if r['pi']], default='')) if last else '',
+        'start_first': str(min([r['start'] for r in first if r['start']], default='')) if first else '',
     })
 
 first_dates = {}
@@ -95,10 +101,16 @@ json.dump(first_dates, open(os.path.join(D, 'pi_first_dates.json'), 'w'))
 with open(os.path.join(D, 'pi_ledger.csv'), 'w', newline='', encoding='utf-8') as fo:
     w = csv.DictWriter(fo, list(ledger[0].keys())); w.writeheader(); w.writerows(ledger)
 with open(os.path.join(D, 'pi_prices.csv'), 'w', newline='', encoding='utf-8') as fo:
-    w = csv.writer(fo); w.writerow(['sku', 'po', 'price', 'quote_date', 'units', 'source'])
+    w = csv.writer(fo); w.writerow(['sku', 'po', 'price', 'quote_date', 'units', 'source', 'price_year', 'price_year_basis'])
     for L in ledger:
-        if L['price_first']:
-            w.writerow([L['item'], L['po'], L['price_first'], L['first_quote'], L['qty_first'], L['source']])
+        if L['price_last'] or L['price_first']:
+            if L['pi_first_min']:
+                py, pb = L['pi_first_min'][:4], 'PI date'
+            elif L.get('start_first'):
+                py, pb = L['start_first'][:4], 'start date'
+            else:
+                py, pb = L['first_quote'][:4], 'quote date'
+            w.writerow([L['item'], L['po'], L['price_last'] or L['price_first'], L['first_quote'], L['qty_first'], L['source'], py, pb])
 
 # re-quotes: price changed between first and latest quote on the same PO line
 requotes = [L for L in ledger if L['price_first'] and L['price_last'] and abs(L['price_last'] - L['price_first']) > 0.01]

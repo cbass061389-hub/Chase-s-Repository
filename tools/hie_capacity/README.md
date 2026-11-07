@@ -26,8 +26,10 @@ Raw attachment text and intermediate CSVs are not committed (supplier data, ~15 
 - `pi_ledger.py` merges parsed HIE PI confirmations and monthly "Pending order list" lines (`../pi/pi_lines_*.tsv`) into
   `pi_ledger.csv` (first and latest quote per PO line), `pi_prices.csv` (quoted price per SKU/PO) and
   `pi_first_dates.json` (PI dates on HIE's first quote). `analyze.py` uses those dates as the commitment where available.
-- `cost.py` builds the per-SKU, per-PO price history: HIE's quoted price first, warehouse-list price as fallback. PO year =
-  HIE quote date; unquoted POs are dated by PO number interpolated between quoted POs. Output `cost.json`: unit-weighted,
+- `cost.py` builds the per-SKU, per-PO price history: HIE's latest quoted price first (what HIE charges), warehouse-list
+  price as fallback. Price year = year of the PO's earliest PI date (HIE prices by PI date), from the PI ledger, else the
+  open order list, else PO-number interpolation. Future price years are excluded. HIE-announced increases (tables with
+  the prior year's final price) are extracted separately as a check. Output `cost.json`: unit-weighted,
   chain-linked YoY index (years with <5 comparable SKUs skipped) and $ impact = price change x units ordered.
 - `cancel_lines.tsv` (cancellations, reductions, holds, HIE responses and charges) is rendered as-is.
 

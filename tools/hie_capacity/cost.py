@@ -147,7 +147,9 @@ if os.path.exists(pif):
         except ValueError:
             continue
         units = f(q['units']) or 0
-        rec = {'sku': sku, 'po': po, 'price': round(p, 2), 'n_prices': 1, 'po_date': str(qd), 'year': qd.year,
+        py = int(q['price_year']) if (q.get('price_year') or '').isdigit() else qd.year
+        rec = {'sku': sku, 'po': po, 'price': round(p, 2), 'n_prices': 1, 'po_date': str(qd), 'year': py,
+               'year_basis': 'Production year (' + (q.get('price_year_basis') or 'quote date') + ')',
                'date_basis': 'HIE quote date (' + q['source'] + ')', 'units': round(order_qty.get((po, sku)) or units),
                'units_basis': 'PO order qty (open order list)' if order_qty.get((po, sku)) else 'PI qty',
                'wh_first': '', 'wh_last': '', 'price_source': 'HIE PI' if q['source'] == 'PI' else 'HIE pending list'}
@@ -182,6 +184,47 @@ def pline(sku):
     return 'Other'
 
 
+
+# ---------------- price year = year of the PO's earliest PI date (HIE prices by PI date), any source
+po_pi = {}
+_lf = os.path.join(D, '..', 'pi', 'pi_ledger.csv')
+if os.path.exists(_lf):
+    for r in csv.DictReader(open(_lf, encoding='utf-8')):
+        if r['pi_first_min']:
+            po_pi[r['po']] = min(po_pi.get(r['po'], r['pi_first_min']), r['pi_first_min'])
+_tf = os.path.join(CAP, 'lines_tracked.csv')
+if os.path.exists(_tf):
+    for r in csv.DictReader(open(_tf, encoding='utf-8')):
+        v = r.get('orig_pi') or ''
+        if re.match(r'\d{4}-\d{2}-\d{2}$', v) and r['po'] not in po_pi:
+            po_pi.setdefault('_ool_' + r['po'], v)
+            po_pi['_ool_' + r['po']] = min(po_pi['_ool_' + r['po']], v)
+n_pi_year = 0
+for r in rows:
+    v = po_pi.get(r['po']) or po_pi.get('_ool_' + r['po'])
+    if v:
+        r['year'] = int(v[:4]); r['year_basis'] = 'PO earliest PI date (' + ('PI' if r['po'] in po_pi else 'open order list') + ')'
+        n_pi_year += 1
+    else:
+        r.setdefault('year_basis', r.get('date_basis', ''))
+
+# ---------------- HIE-announced price increases (price tables with 'previous year final price' in PI threads)
+announced = {}
+for fp in sorted(glob.glob(os.path.join(D, '..', 'pi', 'pi_lines_*.tsv'))):
+    for r in csv.DictReader(open(fp, encoding='utf-8', errors='replace'), delimiter='\t'):
+        rem = r.get('remark') or ''
+        m0 = re.search(r'(20\d\d) final price \$?([\d,]+\.?\d*)', rem, re.I)
+        p1 = f(r.get('unit_price'))
+        if not m0 or not p1:
+            continue
+        p0 = f(m0.group(2))
+        if not p0:
+            continue
+        sku = norm(r['item'])
+        announced[sku] = {'sku': sku, 'line': '', 'from_year': int(m0.group(1)), 'to_year': int(m0.group(1)) + 1,
+                          'p0': p0, 'p1': round(p1, 2), 'pct': round(100 * (p1 / p0 - 1), 1),
+                          'date': (r.get('received_utc') or '')[:10], 'subject': r.get('subject', '')}
+
 # ---------------- year prices per SKU
 yr = defaultdict(lambda: defaultdict(lambda: [0.0, 0.0]))   # sku -> year -> [sum p*q, sum q]
 for r in rows:
@@ -205,6 +248,7 @@ for s, ys_ in sku_year.items():
 
 yoy = []
 idx = 100.0
+pairs = [p for p in pairs if p['to'] <= date.today().year]   # future price years = orders not yet built
 pair_years = sorted({p['from'] for p in pairs})
 years = [y for y in years if pair_years and y >= pair_years[0]]
 index = [{'year': years[0], 'index': 100.0}] if years else []
@@ -260,10 +304,10 @@ for s in yr:
 spread.sort(key=lambda r: -r['pct'])
 
 out = {'meta': {'n_obs': len(obs), 'n_files': len(glob.glob(os.path.join(D, 'wh_raw', '*.txt'))),
-                'n_sku_po': len(rows), 'n_skus': len(yr), 'years': years, 'n_pi_prices': n_pi,
+                'n_sku_po': len(rows), 'n_skus': len(yr), 'years': years, 'n_pi_prices': n_pi, 'n_pi_year': n_pi_year,
                 'price_source_counts': {k: sum(1 for r in rows if r['price_source'] == k) for k in ('HIE PI', 'HIE pending list', 'Warehouse list')},
                 'po_slope_days_per_po': round(slope, 3),
                 'basis_counts': {b: sum(1 for r in rows if r['date_basis'] == b) for b in {r['date_basis'] for r in rows}}},
-       'yoy': yoy, 'index': index, 'lines': line_rows, 'skus': sku_rows, 'pairs': pairs, 'spread': spread[:200]}
+       'yoy': yoy, 'index': index, 'announced': sorted(announced.values(), key=lambda a: (-a['pct'], a['sku'])), 'lines': line_rows, 'skus': sku_rows, 'pairs': pairs, 'spread': spread[:200]}
 json.dump(out, open(os.path.join(D, 'cost.json'), 'w'), default=str)
 print(json.dumps(out['meta'], indent=1)); print(json.dumps(yoy, indent=1)); print(index)

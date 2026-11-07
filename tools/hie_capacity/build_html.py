@@ -14,7 +14,7 @@ if os.path.exists(pp):
                'cancel': [{k: (r.get(k) or '')[:220] for k in ('received_utc', 'action', 'po', 'item', 'qty_before', 'qty_after_or_cancelled',
                                                                'requested_by', 'hie_response', 'reason_quote', 'cost_or_charge_mentioned')} for r in cl]}
 if os.path.exists(cp):
-    c = json.load(open(cp)); m['cost'] = {k: c[k] for k in ('meta', 'yoy', 'index', 'lines', 'skus', 'spread')}
+    c = json.load(open(cp)); m['cost'] = {k: c.get(k) for k in ('meta', 'yoy', 'index', 'lines', 'skus', 'spread', 'announced')}
 k = m['kpi']
 
 HTML = r"""<!doctype html>
@@ -85,9 +85,10 @@ th:first-child,td:first-child,th.l,td.l{text-align:left}tr:hover td{background:v
 <div class="card"><h2>Cancellations, reductions and holds</h2><p class="cap">PO changes found in HIE threads. HIE's response and any charge it asked for are quoted from the email.</p><div class="tw" style="max-height:460px"><table id="t-can"></table></div></div>
 
 <div class="card" id="costcard"><h2>HIE price changes year over year</h2>
-<p class="cap">HIE's quoted unit price per SKU per PO (PI confirmations and pending order lists; warehouse inventory list where no quote was found). Year = when HIE quoted the PO. Change is measured SKU by SKU on items bought in both years, weighted by units, so mix shifts don't distort it. $ impact = price change × units ordered that year.</p>
+<p class="cap">HIE's quoted unit price per SKU per PO (PI confirmations and pending order lists; warehouse inventory list where no quote was found). Year = price year (the PO's earliest PI date). Change is measured SKU by SKU on items bought in both years, weighted by units, so mix shifts don't distort it. $ impact = price change × units ordered that year.</p>
 <div class="kpis" id="costk" style="margin-bottom:8px"></div>
 <div class="grid2"><div><div id="ch-yoy"></div></div><div class="tw" style="max-height:300px"><table id="t-yoy"></table></div></div></div>
+<div class="card" id="anncard"><h2>Price increases HIE announced</h2><p class="cap">HIE's own price tables in PI threads, showing the prior year's final price next to the new year's price.</p><div class="tw" style="max-height:340px"><table id="t-ann"></table></div></div>
 <div class="card"><h2>Price change by product line</h2><p class="cap">Unit-weighted % change vs prior year; $ = extra (or saved) cost on that year's units.</p><div class="tw"><table id="t-cl"></table></div></div>
 <div class="card"><h2>Price history by SKU</h2><p class="cap">Unit-weighted HIE price by PO year. Sorted by cumulative $ impact of increases.</p>
 <div class="ctrl"><input id="qc" placeholder="Search SKU…" size="28"><select id="flc"></select><span class="note" id="cntc"></span></div><div class="tw"><table id="t-cs"></table></div></div>
@@ -281,6 +282,7 @@ if(M.cost){const C=M.cost;const Y=C.yoy;const pct=v=>v==null?'–':(v>0?'+':'')+
  const flc=document.getElementById('flc');flc.innerHTML='<option value="">All product lines</option>'+[...new Set(C.skus.map(r=>r.line))].sort().map(l=>`<option>${l}</option>`).join('');
  const sS={s:scols.length-1,d:-1};sS.render=()=>{const q=document.getElementById('qc').value.trim().toUpperCase(),l=flc.value;const rows=C.skus.filter(r=>(!q||r.sku.includes(q))&&(!l||r.line===l));document.getElementById('cntc').textContent=rows.length+' SKUs';table('t-cs',scols,rows,sS)};
  ['qc','flc'].forEach(i=>document.getElementById(i).addEventListener('input',sS.render));sS.render();
+ if(C.announced&&C.announced.length){const ac=[{h:'SKU',v:r=>r.sku,l:1},{h:'Years',v:r=>r.from_year,f:r=>r.from_year+'→'+r.to_year},{h:'Prior price',v:r=>r.p0,f:r=>'$'+r.p0.toFixed(2)},{h:'New price',v:r=>r.p1,f:r=>'$'+r.p1.toFixed(2)},{h:'Increase',v:r=>r.pct,f:r=>'+'+r.pct+'%',cls:r=>'bad'},{h:'HIE email',v:r=>r.date,f:r=>dlab(r.date),l:1}];const aS={s:4,d:-1};aS.render=()=>table('t-ann',ac,C.announced,aS);aS.render()} else {document.getElementById('anncard').style.display='none'}
  const pcols=[{h:'SKU',v:r=>r.sku,l:1},{h:'Year',v:r=>r.year},{h:'Low',v:r=>r.low,f:r=>'$'+r.low.toFixed(2)},{h:'High',v:r=>r.high,f:r=>'$'+r.high.toFixed(2)},{h:'Spread',v:r=>r.pct,f:r=>'+'+r.pct+'%',cls:r=>r.pct>10?'bad':''}];
  const pS={s:4,d:-1};pS.render=()=>table('t-spread',pcols,C.spread,pS);pS.render();
 } else {document.getElementById('costcard').innerHTML='<h2>HIE price changes</h2><p class="cap">No price data loaded.</p>'}
@@ -293,7 +295,7 @@ document.getElementById('method').innerHTML=[
  `<b>Slip</b> = finish − original PI date. On time = within ${K.grace} days. Lines already finished when first seen, and lines that vanished with nothing produced (cancelled or re-split by HIE), are excluded from slip. ${fmt(K.n_fin)} finished lines are measured.`,
  `<b>Output</b> = week-over-week increase in good + rejects per PO line. Intervals with missing reports are spread evenly across their days.`,
  `<b>Revenue</b> = units × selling price. Price = average open sales-order rate for the SKU (${K.priced_skus} SKUs); otherwise NetSuite average cost × that product line's median price-to-cost ratio (${K.cost_skus} SKUs, marked * in the SKU table); HIE codes not in NetSuite take the median price of their closest SKU family (${K.family_skus} SKUs, e.g. BCP PRE BK RUSH …); anything still unmatched uses the overall median ${usdF(K.fallback_price)} (${K.unpriced_skus} SKUs). "Late revenue" is value delivered late, not proven lost sales — that needs Jacksonville stock-out history.`,
- `<b>Price changes:</b> HIE's quoted unit price per SKU and PO — from its PI confirmations and pending order lists where available, otherwise the unit price on the weekly 'Predator warehouse inventory list'. PO year = HIE's quote date; POs without a quote are dated from their PO number (PO numbers are sequential) interpolated between quoted POs. PO 7666 (HIE overstock bucket) excluded. YoY compares the same SKU across consecutive years, unit-weighted; index is chain-linked.`,
+ `<b>Price changes:</b> HIE's quoted unit price per SKU and PO — from its PI confirmations and pending order lists where available, otherwise the unit price on the weekly 'Predator warehouse inventory list'. Price year = the year of the PO's earliest PI date (HIE sets pricing by PI date — e.g. its footer note 'PI date after 31st Mar, 2025 → 2025 pricing'), from HIE's PI where found, else the open order list; the latest quoted price on each line is used (what HIE actually charges). HIE-announced increases are listed separately as a check. PO 7666 (HIE overstock bucket) excluded. YoY compares the same SKU across consecutive years, unit-weighted; index is chain-linked.`,
  `<b>Report gaps</b> (no weekly file found): ${gaps||'none'}.`,
 ].map(s=>`<li>${s}</li>`).join('');
 </script></body></html>"""
