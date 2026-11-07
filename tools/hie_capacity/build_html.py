@@ -4,6 +4,9 @@ import json, os
 D = os.path.dirname(os.path.abspath(__file__))
 OUT = '/home/user/Chase-s-Repository/reports/HIE_Capacity_Actuals.html'
 m = json.load(open(os.path.join(D, 'metrics.json')))
+cp = os.path.join(D, '..', 'cost', 'cost.json')
+if os.path.exists(cp):
+    c = json.load(open(cp)); m['cost'] = {k: c[k] for k in ('meta', 'yoy', 'index', 'lines', 'skus', 'spread')}
 k = m['kpi']
 
 HTML = r"""<!doctype html>
@@ -63,6 +66,16 @@ th:first-child,td:first-child,th.l,td.l{text-align:left}tr:hover td{background:v
 <div class="card"><h2>HIE output per month</h2><p class="cap">Units through production (good + rejects), from week-over-week movement on the open order list. Months with missing weekly reports are spread evenly.</p><div id="ch-cap"></div></div>
 <div class="card"><h2>Reject rate per month</h2><p class="cap">B-grade + defect units as % of units through production.</p><div id="ch-rej"></div></div>
 </div>
+
+
+<div class="card" id="costcard"><h2>HIE price changes year over year</h2>
+<p class="cap">HIE's own unit price per SKU per PO, from the weekly warehouse inventory list. Year = when the PO was placed. Change is measured SKU by SKU on items bought in both years, weighted by units, so mix shifts don't distort it. $ impact = price change × units ordered that year.</p>
+<div class="kpis" id="costk" style="margin-bottom:8px"></div>
+<div class="grid2"><div><div id="ch-yoy"></div></div><div class="tw" style="max-height:300px"><table id="t-yoy"></table></div></div></div>
+<div class="card"><h2>Price change by product line</h2><p class="cap">Unit-weighted % change vs prior year; $ = extra (or saved) cost on that year's units.</p><div class="tw"><table id="t-cl"></table></div></div>
+<div class="card"><h2>Price history by SKU</h2><p class="cap">Unit-weighted HIE price by PO year. Sorted by cumulative $ impact of increases.</p>
+<div class="ctrl"><input id="qc" placeholder="Search SKU…" size="28"><select id="flc"></select><span class="note" id="cntc"></span></div><div class="tw"><table id="t-cs"></table></div></div>
+<div class="card"><h2>Same SKU, different price in the same year</h2><p class="cap">SKUs where HIE charged more than 3% apart on different POs within one year — worth checking against the PI.</p><div class="tw" style="max-height:360px"><table id="t-spread"></table></div></div>
 
 <div class="card"><h2>By product line</h2><p class="cap">Sorted by late revenue. Click a header to sort.</p><div class="tw"><table id="t-pl"></table></div></div>
 
@@ -200,6 +213,40 @@ const odCols=[{h:'PO',v:r=>r.po,l:1},{h:'SKU',v:r=>r.sku,l:1},{h:'Line',v:r=>r.l
 const odS={s:8,d:-1};odS.render=()=>{const q=document.getElementById('q2').value.trim().toUpperCase();const rows=M.od_lines.filter(r=>!q||r.sku.includes(q)||r.po.includes(q));document.getElementById('cnt2').textContent=rows.length+' lines';table('t-od',odCols,rows,odS)};
 document.getElementById('q2').addEventListener('input',odS.render);odS.render();
 
+
+// ---------- cost section
+if(M.cost){const C=M.cost;const Y=C.yoy;const pct=v=>v==null?'–':(v>0?'+':'')+v.toFixed(1)+'%';
+ const last=Y[Y.length-1]||{};const tot=Y.reduce((a,r)=>a+r.impact,0);const idx=C.index[C.index.length-1];
+ document.getElementById('costk').innerHTML=[
+  [pct(last.wpct),`Price change ${last.from}→${last.to}`,`${last.skus} SKUs bought both years`],
+  [idx?(idx.index-100>0?'+':'')+(idx.index-100).toFixed(1)+'%':'–',`Cumulative since ${C.index[0].year}`,'chain-linked, unit-weighted'],
+  [usd(tot),'Extra cost from price changes','sum of yearly $ impact'],
+  [fmt(C.meta.n_skus),'SKUs priced',`${fmt(C.meta.n_sku_po)} SKU-PO prices · ${C.meta.n_files} weekly lists`]
+ ].map(([v,l,n])=>`<div class="kpi"><div class="v">${v}</div><div class="l">${l}</div><div class="n">${n}</div></div>`).join('');
+ // index chart
+ (function(){const D=C.index;const W=600,H=230,pad={l:44,r:10,t:10,b:26};const lo=Math.min(...D.map(r=>r.index))-2,hi=Math.max(...D.map(r=>r.index))+2;
+  const host=document.getElementById('ch-yoy');host.innerHTML='';const s=el('svg',{viewBox:`0 0 ${W} ${H}`},host);const y=v=>pad.t+(H-pad.t-pad.b)*(1-(v-lo)/(hi-lo));
+  for(let i=0;i<=4;i++){const v=lo+(hi-lo)*i/4;el('line',{x1:pad.l,x2:W-pad.r,y1:y(v),y2:y(v),class:'gridl'},s);const t=el('text',{x:pad.l-6,y:y(v)+3.5,'text-anchor':'end'},s);t.textContent=v.toFixed(0)}
+  const x=i=>pad.l+(W-pad.l-pad.r)*(D.length>1?i/(D.length-1):.5);el('path',{d:D.map((r,i)=>(i?'L':'M')+x(i)+','+y(r.index)).join(''),fill:'none',stroke:'var(--s1)','stroke-width':2},s);
+  D.forEach((r,i)=>{const c=el('circle',{cx:x(i),cy:y(r.index),r:5,fill:'var(--s1)',stroke:'var(--surface)','stroke-width':2},s);const t=el('text',{x:x(i),y:H-pad.b+14,'text-anchor':'middle'},s);t.textContent=r.year;
+   const lb=el('text',{x:x(i),y:y(r.index)-10,'text-anchor':'middle'},s);lb.textContent=r.index.toFixed(1);
+   const hit=el('circle',{cx:x(i),cy:y(r.index),r:16,fill:'transparent'},s);const yy=Y.find(q=>q.to===r.year);hit.addEventListener('mousemove',e=>showTip(e,`<b>${r.year}</b>${row('HIE price index',r.index.toFixed(1))}${yy?row('vs prior year',pct(yy.wpct))+row('$ impact',usdF(yy.impact)):''}`));hit.addEventListener('mouseleave',hideTip)});
+  const t=el('text',{x:pad.l,y:H-2},s);t.textContent='HIE price index, '+D[0].year+' = 100'})();
+ const ycols=[{h:'Years',v:r=>r.from+'→'+r.to,l:1},{h:'SKUs',v:r=>r.skus},{h:'Units',v:r=>r.units,f:r=>fmt(r.units)},{h:'Weighted %',v:r=>r.wpct,f:r=>pct(r.wpct),cls:r=>r.wpct>0.5?'bad':''},{h:'Median %',v:r=>r.median_pct,f:r=>pct(r.median_pct)},{h:'Up / flat / down',v:r=>r.up,f:r=>`${r.up} / ${r.flat} / ${r.down}`},{h:'$ impact',v:r=>r.impact,f:r=>usdF(r.impact)}];
+ const yS={s:null,d:-1};yS.render=()=>table('t-yoy',ycols,Y,yS);yS.render();
+ const yrs=Y.map(r=>String(r.to));
+ const lcols=[{h:'Product line',v:r=>r.line,l:1},...yrs.flatMap(y=>[{h:y+' %',v:r=>r[y]?.pct,f:r=>r[y]?pct(r[y].pct):'–',cls:r=>r[y]?.pct>0.5?'bad':''},{h:y+' $',v:r=>r[y]?.impact,f:r=>r[y]?usdF(r[y].impact):'–'}]),{h:'Total $',v:r=>r.impact,f:r=>usdF(r.impact)}];
+ const lS={s:lcols.length-1,d:-1};lS.render=()=>table('t-cl',lcols,C.lines,lS);lS.render();
+ const allY=[...new Set(C.skus.flatMap(r=>Object.keys(r.years)))].sort();
+ const scols=[{h:'SKU',v:r=>r.sku,l:1},{h:'Line',v:r=>r.line,l:1},{h:'POs',v:r=>r.n_po},...allY.map(y=>({h:y,v:r=>r.years[y],f:r=>r.years[y]!=null?'$'+r.years[y].toFixed(2):'–'})),
+  {h:'Total %',v:r=>r.total_pct,f:r=>r.total_pct==null?'–':pct(r.total_pct),cls:r=>r.total_pct>3?'bad':''},{h:'CAGR',v:r=>r.cagr,f:r=>r.cagr==null?'–':pct(r.cagr)},{h:'$ impact',v:r=>r.impact,f:r=>usdF(r.impact)}];
+ const flc=document.getElementById('flc');flc.innerHTML='<option value="">All product lines</option>'+[...new Set(C.skus.map(r=>r.line))].sort().map(l=>`<option>${l}</option>`).join('');
+ const sS={s:scols.length-1,d:-1};sS.render=()=>{const q=document.getElementById('qc').value.trim().toUpperCase(),l=flc.value;const rows=C.skus.filter(r=>(!q||r.sku.includes(q))&&(!l||r.line===l));document.getElementById('cntc').textContent=rows.length+' SKUs';table('t-cs',scols,rows,sS)};
+ ['qc','flc'].forEach(i=>document.getElementById(i).addEventListener('input',sS.render));sS.render();
+ const pcols=[{h:'SKU',v:r=>r.sku,l:1},{h:'Year',v:r=>r.year},{h:'Low',v:r=>r.low,f:r=>'$'+r.low.toFixed(2)},{h:'High',v:r=>r.high,f:r=>'$'+r.high.toFixed(2)},{h:'Spread',v:r=>r.pct,f:r=>'+'+r.pct+'%',cls:r=>r.pct>10?'bad':''}];
+ const pS={s:4,d:-1};pS.render=()=>table('t-spread',pcols,C.spread,pS);pS.render();
+} else {document.getElementById('costcard').innerHTML='<h2>HIE price changes</h2><p class="cap">No price data loaded.</p>'}
+
 // ---------- method
 const gaps=K.gaps.map(g=>`${dlab(g[0])} → ${dlab(g[1])} (${g[2]}d)`).join('; ');
 document.getElementById('method').innerHTML=[
@@ -208,6 +255,7 @@ document.getElementById('method').innerHTML=[
  `<b>Slip</b> = finish − original PI date. On time = within ${K.grace} days. Lines already finished when first seen, and lines that vanished with nothing produced (cancelled or re-split by HIE), are excluded from slip. ${fmt(K.n_fin)} finished lines are measured.`,
  `<b>Output</b> = week-over-week increase in good + rejects per PO line. Intervals with missing reports are spread evenly across their days.`,
  `<b>Revenue</b> = units × selling price. Price = average open sales-order rate for the SKU (${K.priced_skus} SKUs); otherwise NetSuite average cost × that product line's median price-to-cost ratio (${K.cost_skus} SKUs, marked * in the SKU table); HIE codes not in NetSuite take the median price of their closest SKU family (${K.family_skus} SKUs, e.g. BCP PRE BK RUSH …); anything still unmatched uses the overall median ${usdF(K.fallback_price)} (${K.unpriced_skus} SKUs). "Late revenue" is value delivered late, not proven lost sales — that needs Jacksonville stock-out history.`,
+ `<b>Price changes:</b> HIE unit price per SKU and PO from the weekly 'Predator warehouse inventory list' (regular inventory sheet). PO year = first appearance on the open order list; POs already open in Jun 2023 are dated from their PO number. PO 7666 (HIE overstock bucket) excluded. YoY compares the same SKU across consecutive years, unit-weighted; index is chain-linked.`,
  `<b>Report gaps</b> (no weekly file found): ${gaps||'none'}.`,
 ].map(s=>`<li>${s}</li>`).join('');
 </script></body></html>"""
