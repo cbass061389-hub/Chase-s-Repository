@@ -21,3 +21,9 @@ Key rules (see the report's "How this was built"):
   "Late revenue" is revenue pushed out, not proven lost sales.
 
 Raw attachment text and intermediate CSVs are not committed (supplier data, ~15 MB).
+
+## HIE price changes (in progress)
+`cost.py` reads weekly "Predator warehouse inventory list" text dumps (`wh_raw/*.txt`: ITEM# | PO# | QTY | Unit Price)
+plus `../cap/ool_lines.csv` and `../cap/prices.csv`, dates each PO from its first appearance on the open order list
+(older POs from PO number), and writes `po_prices.csv` and `cost.json` (unit-weighted, chain-linked YoY price index;
+$ impact = price change x units ordered). `build_html.py` adds the price section when `cost.json` is present.
