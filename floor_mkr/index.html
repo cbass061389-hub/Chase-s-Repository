@@ -1,0 +1,901 @@
+<title>FLOOR-MKR</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: PG Apps UI shell (status header + yellow rule + binder tabs, pinned), title row, 1400px content.
+   Floor = dense board table; Lines = metrics grid + small-multiple charts. Dark-first, pure grays. */
+@font-face{font-family:"Futura PT";font-weight:400;src:url("fonts/Futura_PT_Book.otf") format("opentype");font-display:swap}
+@font-face{font-family:"Futura PT";font-weight:600;src:url("fonts/Futura_PT_Demi.otf") format("opentype");font-display:swap}
+@font-face{font-family:"Futura PT";font-weight:700;src:url("fonts/Futura_PT_Bold.otf") format("opentype");font-display:swap}
+@font-face{font-family:"Open Sans";font-weight:400;src:url("fonts/OpenSans-Regular.ttf") format("truetype");font-display:swap}
+@font-face{font-family:"Open Sans";font-weight:600;src:url("fonts/OpenSans-Semibold.ttf") format("truetype");font-display:swap}
+
+:root{
+  color-scheme:dark;
+  --bg:#222222; --surface:#2A2A2A; --surface-2:#313131; --surface-3:#383838;
+  --line:#3A3A3A; --line-2:#474747; --heading:#FFFFFF; --ink:#E8E8E8; --muted:#A0A0A0; --faint:#737373;
+  --brand:#F3C716; --on-brand:#111111;
+  --action:#DDFF00; --action-light:#EEFF80; --action-dark:#819408; --on-action:#15170A; --action-text:#DDFF00;
+  --ok:#66CC00; --ok-text:#7FD94A; --warn:#E0726A; --warn-text:#F0968F; --error:#C91E55; --error-text:#F2668F; --info:#4F8FEA; --info-text:#7FB2FF;
+  --rest:#F3A316; --rest-text:#F6B850;
+  --line-REVO:#19AFFF; --line-TABLE:#F07602; --line-WOOD:#00B050; --plan-bar:#5E5E5E;
+  --logo-url:url("logo-white.svg");
+  --font-display:"Futura PT","Futura","Trebuchet MS",system-ui,sans-serif;
+  --font-body:"Open Sans","Helvetica Neue",Arial,sans-serif;
+  --font-mono:"JetBrains Mono",ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+  --r-l:18px 0 18px 0; --r-m:12px 0 12px 0; --r-s:6px 0 6px 0; --r-micro:3px;
+  --sp-1:4px;--sp-2:8px;--sp-3:12px;--sp-4:16px;--sp-5:20px;--sp-6:24px;--sp-8:32px;
+  --t-fast:120ms;--t-base:180ms;--ease:cubic-bezier(.2,0,.2,1);
+  --side-pad:max(16px, env(safe-area-inset-left, 0px));
+}
+@media (prefers-color-scheme: light){
+  :root:not([data-theme="dark"]):not([data-pg-theme]){
+    color-scheme:light;
+    --bg:#EEEEEE;--surface:#FFFFFF;--surface-2:#F5F5F5;--surface-3:#EDEDED;--line:#D9D9D9;--line-2:#C4C4C4;
+    --heading:#111111;--ink:#2A2A2A;--muted:#6B6B6B;--faint:#8C8C8C;
+    --action-text:#6E7D00;--ok-text:#4E9E00;--warn-text:#B2453D;--error-text:#C91E55;--info-text:#2F6FD0;--rest-text:#9A5E00;
+    --plan-bar:#BDBDBD;--logo-url:url("logo-black.svg");
+  }
+}
+:root[data-theme="light"]:not([data-pg-theme]), :root[data-pg-theme="light"]{
+  color-scheme:light;
+  --bg:#EEEEEE;--surface:#FFFFFF;--surface-2:#F5F5F5;--surface-3:#EDEDED;--line:#D9D9D9;--line-2:#C4C4C4;
+  --heading:#111111;--ink:#2A2A2A;--muted:#6B6B6B;--faint:#8C8C8C;
+  --action-text:#6E7D00;--ok-text:#4E9E00;--warn-text:#B2453D;--error-text:#C91E55;--info-text:#2F6FD0;--rest-text:#9A5E00;
+  --plan-bar:#BDBDBD;--logo-url:url("logo-black.svg");
+}
+:root[data-pg-theme="blue"]{
+  color-scheme:dark;
+  --bg:#0E1A24;--surface:#12222E;--surface-2:#163040;--surface-3:#1B3A4D;--line:#244356;--line-2:#2E5468;
+  --heading:#FFFFFF;--ink:#DCEEF7;--muted:#8FB6CC;--faint:#5E86A0;--plan-bar:#3C5E73;--logo-url:url("logo-white.svg");
+}
+
+*{box-sizing:border-box}
+html,body{height:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 var(--font-body);-webkit-font-smoothing:antialiased}
+body::before{content:"";position:fixed;inset:0 0 auto;height:env(safe-area-inset-top,0px);z-index:40;background:var(--surface)}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--action);outline-offset:2px}
+[hidden]{display:none!important}
+h1,h2,h3{margin:0;font-family:var(--font-display);text-transform:uppercase;color:var(--heading);text-wrap:balance}
+.eyebrow{font:600 11px/1 var(--font-display);text-transform:uppercase;letter-spacing:.14em;color:var(--muted)}
+.mono{font-family:var(--font-mono);font-size:12px;color:var(--muted)}
+.num{font-variant-numeric:tabular-nums;text-align:right}
+
+/* ---- shell ---- */
+.mkr-top{position:sticky;top:env(safe-area-inset-top,0px);z-index:30;background:var(--surface)}
+.mkr-header{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-4);height:50px;padding:8px var(--side-pad) 7px;
+  padding-right:max(16px, env(safe-area-inset-right,0px))}
+.wordmark{font:700 20px/1 var(--font-display);text-transform:uppercase;letter-spacing:.04em;color:var(--heading);white-space:nowrap}
+.wordmark b{color:var(--brand);font-weight:700}
+.hdr-left,.hdr-right{display:flex;align-items:center;gap:var(--sp-4);min-width:0}
+.hdr-user{font-size:13px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.conn{display:flex;align-items:center;gap:6px;font:600 11px/1 var(--font-display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.conn i{width:8px;height:8px;border-radius:50%;background:var(--faint);display:inline-block}
+.conn[data-state="ok"] i{background:var(--ok)}
+.conn[data-state="checking"] i{background:var(--action);animation:pulse 1.2s infinite}
+.conn[data-state="error"] i{background:var(--error)}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+.iconbtn{width:32px;height:32px;border:0;border-radius:var(--r-s);background:transparent;color:var(--muted);display:grid;place-items:center;transition:color var(--t-fast) var(--ease),background var(--t-fast) var(--ease)}
+.iconbtn:hover{color:var(--heading);background:var(--surface-2)}
+.iconbtn svg{width:18px;height:18px}
+.pglogo{height:22px;width:120px;background:var(--logo-url) no-repeat right center/contain}
+.mkr-rule{height:3px;background:var(--brand)}
+.mkr-tabs{display:flex;gap:2px;padding:0 var(--side-pad);background:var(--surface);border-bottom:1px solid var(--line);overflow-x:auto}
+.mkr-tabs a{font:600 12px/1 var(--font-display);text-transform:uppercase;letter-spacing:.12em;color:var(--muted);text-decoration:none;padding:11px 16px 10px;border-radius:0 0 var(--r-micro) var(--r-micro);white-space:nowrap;transition:background var(--t-fast) var(--ease),color var(--t-fast) var(--ease)}
+.mkr-tabs a:hover{color:var(--heading);background:color-mix(in srgb,var(--brand) 20%,transparent)}
+.mkr-tabs a[aria-current="page"]{background:var(--brand);color:var(--on-brand)}
+.mkr-tabs a .cnt{margin-left:6px;opacity:.75;font-variant-numeric:tabular-nums}
+
+.wrap{max-width:1400px;margin:0 auto;padding-inline:var(--side-pad) max(16px, env(safe-area-inset-right,0px));padding-block:var(--sp-5) var(--sp-8)}
+.titlerow{display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:var(--sp-4);margin-bottom:var(--sp-5)}
+.titlerow h1{font-size:30px;letter-spacing:.04em;font-weight:700}
+.subline{color:var(--muted);margin-top:4px}
+.seg{display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r-m);padding:3px;gap:2px}
+.seg button{border:0;background:transparent;color:var(--muted);padding:7px 14px;border-radius:9px 0 9px 0;font:600 12px/1 var(--font-display);letter-spacing:.12em;text-transform:uppercase;display:flex;align-items:center;gap:8px;transition:all var(--t-fast) var(--ease)}
+.seg button i{width:8px;height:8px;border-radius:50%;background:var(--c,var(--faint))}
+.seg button[aria-pressed="true"]{background:var(--surface);color:var(--heading);box-shadow:inset 0 0 0 1px var(--line-2)}
+
+/* ---- metrics ---- */
+.metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:var(--sp-3);margin-bottom:var(--sp-5)}
+.metric{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-m);padding:12px 14px 10px;min-width:0}
+.metric .lbl{font:600 11px/1 var(--font-display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.metric .val{font:700 30px/1.1 var(--font-display);color:var(--heading);margin-top:8px;font-variant-numeric:tabular-nums}
+.metric .foot{color:var(--faint);font-size:12px;margin-top:4px}
+.metric[data-attn="1"] .val{color:var(--warn-text)}
+
+/* ---- toolbar ---- */
+.toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:var(--sp-3);margin-bottom:var(--sp-3)}
+.toolbar .grow{flex:1 1 200px}
+.search{display:flex;align-items:center;gap:8px;background:var(--surface);border:1px solid var(--line);border-radius:var(--r-m);padding:0 12px;height:36px;min-width:0}
+.search svg{width:16px;height:16px;color:var(--muted);flex:none}
+.search input{border:0;background:transparent;outline:none;width:100%;min-width:0}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{border:1px solid var(--line-2);background:var(--surface);color:var(--muted);border-radius:var(--r-s);padding:6px 10px;font-size:12px;transition:all var(--t-fast) var(--ease)}
+.chip[aria-pressed="true"]{background:var(--surface-3);color:var(--heading);border-color:var(--faint)}
+
+/* ---- buttons: every button is filled ---- */
+.btn{border:0;border-radius:var(--r-m);padding:0 16px;height:36px;font:600 12px/1 var(--font-display);letter-spacing:.12em;text-transform:uppercase;display:inline-flex;align-items:center;gap:8px;white-space:nowrap;transition:all var(--t-fast) var(--ease)}
+.btn svg{width:16px;height:16px}
+.btn-primary{background:var(--action);color:var(--on-action)}
+.btn-primary:hover{background:var(--action-light);box-shadow:0 0 0 4px color-mix(in srgb,var(--action) 25%,transparent)}
+.btn-secondary{background:color-mix(in srgb,var(--action) 22%,var(--surface-2));color:var(--action-text)}
+.btn-secondary:hover{background:color-mix(in srgb,var(--action) 34%,var(--surface-2))}
+.btn-standard{background:var(--surface-3);color:var(--heading)}
+.btn-standard:hover{background:var(--line-2)}
+.btn-ghost{background:transparent;color:var(--muted)}
+.btn-ghost:hover{color:var(--heading);background:var(--surface-2)}
+.btn-cancel{background:color-mix(in srgb,var(--warn) 22%,var(--surface-2));color:var(--warn-text)}
+.btn-danger{background:var(--error);color:#fff}
+.btn-sm{height:28px;padding:0 10px;font-size:11px}
+.btn:disabled{opacity:.45;cursor:not-allowed;box-shadow:none}
+
+/* ---- pills ---- */
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:var(--r-s);padding:3px 8px;font:600 11px/1.2 var(--font-display);letter-spacing:.08em;text-transform:uppercase;border:1px solid transparent;white-space:nowrap}
+.pill::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+.pill-ok{color:var(--ok-text);border-color:color-mix(in srgb,var(--ok) 50%,transparent)}
+.pill-warn{color:var(--warn-text);border-color:color-mix(in srgb,var(--warn) 50%,transparent)}
+.pill-error{color:var(--error-text);border-color:color-mix(in srgb,var(--error) 50%,transparent)}
+.pill-info{color:var(--info-text);border-color:color-mix(in srgb,var(--info) 50%,transparent)}
+.pill-rest{color:var(--rest-text);border-color:color-mix(in srgb,var(--rest) 50%,transparent)}
+.pill-run{color:var(--action-text);border-color:color-mix(in srgb,var(--action) 45%,transparent)}
+.pill-run::before{animation:pulse 1.2s infinite}
+.pill-muted{color:var(--muted);border-color:var(--line-2)}
+
+/* ---- cards & tables ---- */
+.card{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-l);min-width:0}
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:var(--sp-3);padding:14px 18px;border-bottom:1px solid var(--line)}
+.card-head h2{font-size:14px;letter-spacing:.12em;font-weight:600}
+.card-head .meta{color:var(--muted);font-size:12px}
+.card-body{padding:16px 18px}
+.tablewrap{overflow-x:auto;border-radius:0 0 18px 0}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th{font:600 11px/1 var(--font-display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);text-align:left;padding:10px 10px;border-bottom:1px solid var(--line);white-space:nowrap;background:var(--surface);position:sticky;top:0;z-index:1}
+td{padding:7px 10px;border-bottom:1px solid var(--line);vertical-align:middle;white-space:nowrap}
+tr:last-child td{border-bottom:0}
+tbody tr:hover td{background:var(--surface-2)}
+tr.grp td{background:var(--surface-2);font:600 11px/1 var(--font-display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);padding:9px 10px}
+tr.done td{color:var(--faint)}
+tr.done td .mono,tr.done td .idc{color:var(--faint)}
+tr.rejected td .idc{text-decoration:line-through}
+td.idc{font-family:var(--font-mono);font-size:12px;color:var(--ink)}
+.tick{width:26px;height:26px;border-radius:var(--r-micro);border:1px solid var(--line-2);background:var(--surface-2);display:grid;place-items:center;color:transparent;transition:all var(--t-fast) var(--ease);padding:0}
+.tick[aria-pressed="true"]{background:var(--action);border-color:var(--action);color:var(--on-action)}
+.tick:disabled{cursor:default;opacity:.6}
+.tick svg{width:14px;height:14px}
+.tick-cell{text-align:center;padding:4px 3px}
+.rowbtn{opacity:.85}
+.unitrow td:first-child{position:relative}
+.unitrow[data-line] td:first-child::before{content:"";position:absolute;left:0;top:6px;bottom:6px;width:3px;border-radius:2px;background:var(--lc)}
+
+/* ---- empty / notice ---- */
+.empty{padding:40px 24px;text-align:center;color:var(--muted)}
+.empty h3{font-size:16px;letter-spacing:.12em;margin-bottom:8px}
+.empty p{margin:0 auto;max-width:48ch}
+.notice{background:color-mix(in srgb,var(--info) 14%,var(--surface));border:1px solid color-mix(in srgb,var(--info) 40%,transparent);border-radius:var(--r-m);padding:10px 14px;color:var(--ink);font-size:13px;margin-bottom:var(--sp-4)}
+.notice.warn{background:color-mix(in srgb,var(--warn) 14%,var(--surface));border-color:color-mix(in srgb,var(--warn) 45%,transparent)}
+
+/* ---- drawer / dialog ---- */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:50;display:flex;justify-content:flex-end}
+.drawer{width:min(520px,100%);height:100%;background:var(--surface);border-left:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden;
+  padding-top:env(safe-area-inset-top,0px);animation:slidein var(--t-base) var(--ease)}
+@keyframes slidein{from{transform:translateX(12px);opacity:0}to{transform:none;opacity:1}}
+.drawer-head{padding:18px 22px 14px;border-bottom:1px solid var(--line)}
+.drawer-head h2{font-size:20px;letter-spacing:.04em}
+.drawer-body{padding:18px 22px;overflow:auto;flex:1;display:flex;flex-direction:column;gap:var(--sp-4)}
+.drawer-foot{padding:14px 22px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:var(--sp-3);flex-wrap:wrap;
+  padding-right:max(22px, env(safe-area-inset-right,0px));padding-bottom:max(14px, env(safe-area-inset-bottom,0px))}
+.dialog{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,.55);display:grid;place-items:center;padding:16px}
+.panel{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-l);width:min(720px,100%);max-height:calc(100% - 32px);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 16px 48px rgba(0,0,0,.35)}
+.panel .drawer-body{max-height:70vh}
+.ctx{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:10px 16px;background:var(--surface-2);border-radius:var(--r-m);padding:12px 14px}
+.ctx .k{font:600 11px/1 var(--font-display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.ctx .v{font-size:13px;color:var(--heading);overflow:hidden;text-overflow:ellipsis}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field label{font:600 11px/1 var(--font-display);letter-spacing:.12em;text-transform:uppercase;color:var(--muted)}
+.field .hint{font-size:12px;color:var(--faint)}
+.field .err{font-size:12px;color:var(--error-text)}
+.input,select.input,textarea.input{height:38px;border:1px solid var(--line-2);background:var(--surface-2);border-radius:var(--r-m);padding:0 12px;width:100%;min-width:0;outline:none;transition:border-color var(--t-fast) var(--ease),box-shadow var(--t-fast) var(--ease)}
+textarea.input{height:auto;min-height:72px;padding:10px 12px;resize:vertical}
+.input:focus{border-color:var(--action);box-shadow:0 0 0 3px color-mix(in srgb,var(--action) 25%,transparent)}
+.input.needed{border-color:var(--action)}
+.input.bad{border-color:var(--error)}
+.input.big{font-family:var(--font-mono);font-size:18px;height:46px;letter-spacing:.04em}
+.opts{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
+.opt{border:1px solid var(--line-2);background:var(--surface-2);border-radius:var(--r-m);padding:10px 12px;text-align:left;display:flex;flex-direction:column;gap:3px;transition:all var(--t-fast) var(--ease)}
+.opt b{font:600 12px/1 var(--font-display);letter-spacing:.1em;text-transform:uppercase;color:var(--heading)}
+.opt span{font-size:12px;color:var(--muted)}
+.opt[aria-pressed="true"]{border-color:#fff;background:var(--surface-3);box-shadow:inset 0 0 0 1px #fff}
+:root[data-pg-theme="light"] .opt[aria-pressed="true"],:root[data-theme="light"]:not([data-pg-theme]) .opt[aria-pressed="true"]{border-color:var(--heading);box-shadow:inset 0 0 0 1px var(--heading)}
+.split{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.split .field .input{text-align:right;font-variant-numeric:tabular-nums}
+.total{display:flex;justify-content:space-between;align-items:baseline;padding:10px 14px;background:var(--surface-2);border-radius:var(--r-m)}
+.total b{font:700 22px/1 var(--font-display);color:var(--heading)}
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:560px){.row2,.split{grid-template-columns:1fr 1fr}}
+
+/* ---- lines view ---- */
+.grid{display:grid;grid-template-columns:repeat(12,1fr);gap:var(--sp-4)}
+.span12{grid-column:span 12}.span6{grid-column:span 6}.span4{grid-column:span 4}
+@media (max-width:900px){.span6,.span4{grid-column:span 12}}
+.flag{display:inline-flex;align-items:center;gap:6px;font:600 11px/1 var(--font-display);letter-spacing:.1em;text-transform:uppercase;padding:4px 8px;border-radius:var(--r-s)}
+.flag-ok{background:color-mix(in srgb,var(--ok) 20%,transparent);color:var(--ok-text)}
+.flag-watch{background:color-mix(in srgb,var(--rest) 22%,transparent);color:var(--rest-text)}
+.flag-act{background:color-mix(in srgb,var(--error) 22%,transparent);color:var(--error-text)}
+.flag-none{color:var(--faint)}
+.chart{width:100%;height:auto;display:block}
+.chart text{font-family:var(--font-body);font-size:11px;fill:var(--muted)}
+.chart .axis{stroke:var(--line-2)}
+.chart .grid{stroke:var(--line);stroke-dasharray:2 3}
+.legend{display:flex;flex-wrap:wrap;gap:14px;font-size:12px;color:var(--muted);padding:0 18px 14px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:6px;vertical-align:-1px}
+.pareto li{display:grid;grid-template-columns:1fr auto;gap:10px;padding:6px 0;border-bottom:1px solid var(--line);font-size:13px}
+.pareto li:last-child{border-bottom:0}
+.pareto .bar{height:4px;background:var(--surface-3);border-radius:2px;grid-column:1 / -1;overflow:hidden}
+.pareto .bar i{display:block;height:100%;background:var(--lc)}
+.pareto ul{list-style:none;margin:0;padding:0}
+.targets{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+
+/* ---- plan grid ---- */
+.plan td input{width:56px;height:30px;text-align:right;border:1px solid transparent;background:transparent;border-radius:var(--r-micro);padding:0 6px;font-variant-numeric:tabular-nums}
+.plan td input:hover{border-color:var(--line-2)}
+.plan td input:focus{border-color:var(--action);background:var(--surface-2);outline:none}
+.plan th.cur,.plan td.cur{background:color-mix(in srgb,var(--action) 8%,var(--surface))}
+.plan tfoot td{font-weight:600;color:var(--heading);border-top:1px solid var(--line-2)}
+.plan tfoot td.over{color:var(--warn-text)}
+
+/* ---- toasts, prefs ---- */
+.toasts{position:fixed;left:max(16px, env(safe-area-inset-left,0px));bottom:max(16px, env(safe-area-inset-bottom,0px));z-index:60;display:flex;flex-direction:column;gap:8px}
+.toast{background:var(--surface-3);color:var(--heading);border:1px solid var(--line-2);border-radius:var(--r-m);padding:10px 14px;font-size:13px;display:flex;gap:12px;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,.3);animation:slidein var(--t-base) var(--ease)}
+.toast.ok{border-color:color-mix(in srgb,var(--ok) 50%,transparent)}
+.toast.err{border-color:color-mix(in srgb,var(--error) 60%,transparent)}
+.menu{position:absolute;right:max(16px, env(safe-area-inset-right,0px));top:52px;background:var(--surface);border:1px solid var(--line-2);border-radius:var(--r-m);padding:12px;min-width:240px;box-shadow:0 12px 32px rgba(0,0,0,.35);z-index:45;display:flex;flex-direction:column;gap:10px}
+.menu .eyebrow{margin-bottom:2px}
+.menu .seg{width:100%}
+.menu .seg button{flex:1;justify-content:center}
+.menu hr{border:0;border-top:1px solid var(--line);margin:2px 0}
+.menu .btn{justify-content:flex-start;width:100%}
+.inline-confirm{display:inline-flex;gap:6px;align-items:center}
+.setup-table input{height:30px;border:1px solid var(--line-2);background:var(--surface-2);border-radius:var(--r-micro);padding:0 8px;width:100%}
+.setup-table td{padding:4px 6px}
+.setup-table input.w-s{width:64px}
+@media (prefers-reduced-motion: reduce){*{animation:none!important;transition:none!important}}
+@media (max-width:640px){.hdr-user,.conn span{display:none}.titlerow h1{font-size:24px}.metric .val{font-size:24px}}
+</style>
+
+<div class="mkr-top">
+  <div class="mkr-header">
+    <div class="hdr-left">
+      <div class="wordmark">Floor<b>-MKR</b></div>
+      <div class="hdr-user" id="hdrUser"></div>
+    </div>
+    <div class="hdr-right">
+      <div class="conn" id="conn" data-state="checking" title="Shared data"><i></i><span id="connLbl">Connecting</span></div>
+      <button class="iconbtn" id="btnHelp" title="Help" aria-label="Help"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></button>
+      <button class="iconbtn" id="btnPrefs" title="Preferences" aria-label="Preferences" aria-haspopup="menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.6 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.6a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></button>
+      <div class="pglogo" role="img" aria-label="Predator Group"></div>
+    </div>
+  </div>
+  <div class="mkr-rule"></div>
+  <nav class="mkr-tabs" id="tabs" aria-label="Sections">
+    <a href="#floor" data-view="floor">Floor<span class="cnt" id="cntFloor"></span></a>
+    <a href="#holds" data-view="holds">Holds<span class="cnt" id="cntHolds"></span></a>
+    <a href="#log" data-view="log">Log</a>
+    <a href="#plan" data-view="plan">Plan</a>
+    <a href="#lines" data-view="lines">Lines</a>
+  </nav>
+</div>
+<div class="menu" id="prefs" hidden role="menu"></div>
+
+<main class="wrap" id="main"></main>
+<div class="toasts" id="toasts"></div>
+<div id="overlay"></div>
+
+<script>
+(() => {
+"use strict";
+// ============================================================ helpers
+const $ = (s, el = document) => el.querySelector(s);
+const h = (tag, attrs, ...kids) => {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k === "class") el.className = v;
+    else if (k === "html") el.innerHTML = v;
+    else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
+    else if (k === "style") el.style.cssText = v;
+    else if (v === true) el.setAttribute(k, "");
+    else el.setAttribute(k, v);
+  }
+  for (const kid of kids.flat()) if (kid != null && kid !== false) el.append(kid.nodeType ? kid : document.createTextNode(String(kid)));
+  return el;
+};
+const ICON = {
+  check: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+  search: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>',
+  plus: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  dl: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2"/></svg>',
+  qc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>',
+};
+const pad = n => String(n).padStart(2, "0");
+const isoDate = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const parseDate = s => { if (!s) return null; const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+const today = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const monday = d => { const x = new Date(d); x.setHours(0, 0, 0, 0); x.setDate(x.getDate() - ((x.getDay() + 6) % 7)); return x; };
+const fmtD = s => { const d = typeof s === "string" ? parseDate(s) : s; return d ? d.toLocaleDateString(undefined, { weekday: "short", day: "numeric", month: "short" }) : "—"; };
+const fmtShort = d => d.toLocaleDateString(undefined, { day: "numeric", month: "short" });
+const fmtTs = iso => { const d = new Date(iso); return isNaN(d) ? "—" : d.toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }); };
+const pct = v => v == null || isNaN(v) ? "—" : (v * 100).toFixed(v >= 0.995 || v === 0 ? 0 : 1) + "%";
+const seg = s => String(s).replace(/[^A-Za-z0-9_\-.~:@+]/g, "_").slice(0, 180);
+const ls = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch {} } };
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+// ============================================================ state
+const OUTCOMES = {
+  RELEASED: { label: "Release", help: "Built, inspected, to inventory", pill: "pill-ok" },
+  "B-GRADE": { label: "B-Grade", help: "Sellable as second", pill: "pill-info" },
+  REWORK: { label: "Rework", help: "Back to a station", pill: "pill-warn" },
+  REJECTED: { label: "Reject", help: "Scrap, logged with reason", pill: "pill-error" },
+  "ON HOLD": { label: "Hold", help: "Stop here until released", pill: "pill-rest" },
+};
+const S = {
+  view: "floor", line: ls.get("floor.line") || "WOOD",
+  db: null, user: null, me: { id: null, name: "" }, canWrite: null, canEdit: false,
+  config: null, targets: { attainment: 0.95, fpy: 0.9, reject: 0.05, rework: 0.1 },
+  units: [], holds: [], events: [], plan: [], reasons: [],
+  loaded: { config: false, units: false }, offline: false,
+  filter: "all", search: "", logFilter: "all", period: "WTD",
+  overlay: null, prefsOpen: false,
+};
+const LINE_DEFAULT = {
+  REVO: { name: "REVO carbon shafts", unitNoun: "cart", color: "var(--line-REVO)", stations: [] },
+  TABLE: { name: "Pool tables", unitNoun: "table", color: "var(--line-TABLE)", stations: [] },
+  WOOD: { name: "Panthera cue butts", unitNoun: "cue", color: "var(--line-WOOD)", stations: [] },
+};
+const lineCfg = id => (S.config && S.config.lines && S.config.lines[id]) || LINE_DEFAULT[id] || { name: id, unitNoun: "unit", color: "var(--faint)", stations: [] };
+const lineIds = () => S.config && S.config.lines ? Object.keys(S.config.lines) : Object.keys(LINE_DEFAULT);
+const cur = () => lineCfg(S.line);
+
+// ============================================================ derived
+function derive(u) {
+  const cfg = lineCfg(u.line), st = cfg.stations || [], ticks = u.stations || {}, dates = u.stationDates || {};
+  const done = st.filter(s => ticks[s.id]).length;
+  let nextIdx = st.findIndex(s => !ticks[s.id]);
+  const complete = st.length > 0 && nextIdx === -1;
+  const next = complete ? null : st[nextIdx];
+  const lastDone = [...st].reverse().find(s => ticks[s.id]);
+  const zone = lastDone ? (lastDone.zone || lastDone.name) : "Not started";
+  let restUntil = null;
+  if (next && nextIdx > 0) {
+    const prev = st[nextIdx - 1];
+    if (prev.restDays > 0 && dates[prev.id]) restUntil = addDays(parseDate(dates[prev.id]), prev.restDays);
+  }
+  const resting = !!(restUntil && today() < restUntil);
+  const hold = S.holds.find(x => x.unitDoc === u.id && !x.released);
+  const ready = complete && !u.status && !hold;
+  return { done, total: st.length, complete, next, zone, restUntil, resting, hold, ready };
+}
+const unitsOf = line => S.units.filter(u => u.line === line).sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.unitId.localeCompare(b.unitId));
+
+// ============================================================ shell
+function route() {
+  const hash = (location.hash || "#floor").slice(1);
+  S.view = ["floor", "holds", "log", "plan", "lines"].includes(hash) ? hash : "floor";
+  document.querySelectorAll("#tabs a").forEach(a => a.dataset.view === S.view ? a.setAttribute("aria-current", "page") : a.removeAttribute("aria-current"));
+  render();
+}
+window.addEventListener("hashchange", route);
+
+function setLine(id) { S.line = id; ls.set("floor.line", id); S.filter = "all"; S.search = ""; render(); }
+
+function lineSeg(all) {
+  const ids = all ? ["ALL", ...lineIds()] : lineIds();
+  return h("div", { class: "seg", role: "group", "aria-label": "Line" },
+    ids.map(id => h("button", { type: "button", "aria-pressed": String((all ? S.linesPick || "ALL" : S.line) === id),
+      style: `--c:${id === "ALL" ? "var(--faint)" : lineCfg(id).color}`,
+      onclick: () => all ? (S.linesPick = id, render()) : setLine(id) }, h("i"), id)));
+}
+
+function render() {
+  const main = $("#main"); main.replaceChildren();
+  if (S.offline) main.append(h("div", { class: "notice warn" }, "Shared data cannot be reached yet. What you see may be out of date; edits will retry when the connection returns."));
+  if (S.canWrite === false) main.append(h("div", { class: "notice" }, "You can view the floor but not change it. Ask the owner for Contributor access to tick stations or run QC."));
+  ({ floor: renderFloor, holds: renderHolds, log: renderLog, plan: renderPlan, lines: renderLines })[S.view](main);
+  $("#cntFloor").textContent = S.units.filter(u => derive(u).ready).length || "";
+  $("#cntHolds").textContent = S.holds.filter(x => !x.released).length || "";
+}
+
+function titleRow(title, sub, right) {
+  return h("div", { class: "titlerow" },
+    h("div", null, h("div", { class: "eyebrow" }, `Line · ${S.line}`), h("h1", null, title), h("div", { class: "subline" }, sub)),
+    right);
+}
+
+// ============================================================ FLOOR
+function renderFloor(main) {
+  const cfg = cur(), units = unitsOf(S.line), d = units.map(u => [u, derive(u)]);
+  const n = { board: units.length, ready: 0, resting: 0, hold: 0, released: 0, rejected: 0, rework: 0, notStarted: 0 };
+  for (const [u, x] of d) {
+    if (x.ready) n.ready++; if (x.resting && !u.status) n.resting++; if (x.hold) n.hold++;
+    if (u.status === "RELEASED") n.released++; if (u.status === "REJECTED") n.rejected++; if (u.status === "REWORK") n.rework++;
+    if (x.done === 0 && !u.status) n.notStarted++;
+  }
+  const open = n.board - n.released - n.rejected;
+  main.append(titleRow(cfg.name, `${n.board} ${cfg.unitNoun}${n.board === 1 ? "" : "s"} on the board · ${open} open · ${n.ready} ready for QC`, lineSeg(false)));
+  main.append(h("div", { class: "metrics" },
+    metric("On the board", n.board, `${n.notStarted} not started`),
+    metric("Ready for QC", n.ready, "all stations ticked", n.ready > 0),
+    metric("Resting", n.resting, "rest gate not cleared"),
+    metric("On hold", n.hold, "see Holds", n.hold > 0),
+    metric("In rework", n.rework, ""),
+    metric("Released", n.released, `${n.rejected} rejected`),
+  ));
+  if (!cfg.stations.length) main.append(h("div", { class: "notice warn" }, `${S.line} has no stations defined yet. Open Preferences › Setup to add them before adding units.`));
+
+  const chips = [["all", "All"], ["open", "Open"], ["ready", "Ready for QC"], ["resting", "Resting"], ["hold", "On hold"], ["done", "Released / rejected"]];
+  main.append(h("div", { class: "toolbar" },
+    h("div", { class: "search grow" }, h("span", { html: ICON.search }), h("input", { id: "floorSearch", placeholder: `Find ${cfg.unitNoun}, serial, WO or SKU`, value: S.search, oninput: e => { S.search = e.target.value; renderFloorTable(); } })),
+    h("div", { class: "chips" }, chips.map(([k, l]) => h("button", { class: "chip", type: "button", "aria-pressed": String(S.filter === k), onclick: () => { S.filter = k; renderFloorTable(); } }, l))),
+    S.canWrite !== false && n.ready > 0 ? h("button", { class: "btn btn-primary", type: "button", onclick: () => openQC(d.filter(([, x]) => x.ready).map(([u]) => u)) }, h("span", { html: ICON.qc }), `QC ${n.ready} ready`) : null,
+    S.canEdit ? h("button", { class: "btn btn-standard", type: "button", onclick: openAddUnits }, h("span", { html: ICON.plus }), "Add units") : null,
+  ));
+  const card = h("div", { class: "card", id: "floorCard" });
+  main.append(card);
+  renderFloorTable();
+}
+function metric(lbl, val, foot, attn) { return h("div", { class: "metric", "data-attn": attn ? "1" : "0" }, h("div", { class: "lbl" }, lbl), h("div", { class: "val" }, val), h("div", { class: "foot" }, foot)); }
+
+function renderFloorTable() {
+  const card = $("#floorCard"); if (!card) return; card.replaceChildren();
+  const cfg = cur(), st = cfg.stations || [], q = S.search.trim().toLowerCase();
+  let rows = unitsOf(S.line).map(u => [u, derive(u)]);
+  rows = rows.filter(([u, x]) => {
+    const f = S.filter;
+    if (f === "open" && (u.status === "RELEASED" || u.status === "REJECTED")) return false;
+    if (f === "ready" && !x.ready) return false;
+    if (f === "resting" && !(x.resting && !u.status)) return false;
+    if (f === "hold" && !x.hold) return false;
+    if (f === "done" && !(u.status === "RELEASED" || u.status === "REJECTED")) return false;
+    if (q && ![u.unitId, u.serial, u.wo, u.sku, u.batch].some(v => String(v || "").toLowerCase().includes(q))) return false;
+    return true;
+  });
+  if (!S.loaded.units) { card.append(h("div", { class: "empty" }, h("h3", null, "Loading the board"), h("p", null, "Units, holds and the log arrive from shared data in a moment."))); return; }
+  if (!rows.length) {
+    card.append(h("div", { class: "empty" }, h("h3", null, S.units.filter(u => u.line === S.line).length ? "Nothing matches" : `No ${cfg.unitNoun}s on the ${S.line} board yet`),
+      h("p", null, S.units.filter(u => u.line === S.line).length ? "Clear the search or pick another filter." : (S.canEdit ? "Use Add units to put the first batch on the board: WO, SKU, target date and how many." : "An editor adds units from the Add units button."))));
+    return;
+  }
+  const canTick = S.canWrite !== false;
+  const thead = h("thead", null, h("tr", null,
+    h("th", null, cfg.unitNoun === "cart" ? "Cart" : "Unit"), h("th", null, "WO"), h("th", null, "SKU"), h("th", null, "Serial"), h("th", { class: "num" }, "Qty"), h("th", null, "Zone"), h("th", null, "Target"),
+    st.map(s => h("th", { class: "tick-cell", title: `${s.name}${s.restDays ? ` · rest ${s.restDays} d after` : ""}` }, s.id)),
+    h("th", null, "Rest"), h("th", null, "Status"), h("th", null, "")));
+  const tbody = h("tbody");
+  let lastBatch = Symbol();
+  for (const [u, x] of rows) {
+    if (u.batch !== lastBatch) {
+      lastBatch = u.batch;
+      const inBatch = rows.filter(([v]) => v.batch === u.batch);
+      const tgt = inBatch.map(([v]) => v.target).filter(Boolean).sort()[0];
+      tbody.append(h("tr", { class: "grp" }, h("td", { colspan: 10 + st.length }, `${u.batch || "No batch"}   —   ${inBatch.length} ${cfg.unitNoun}${inBatch.length === 1 ? "" : "s"}${tgt ? `   —   Target ${fmtD(tgt)}` : ""}`)));
+    }
+    const done = u.status === "RELEASED" || u.status === "REJECTED" || u.status === "B-GRADE";
+    const tr = h("tr", { class: `unitrow ${done ? "done" : ""} ${u.status === "REJECTED" ? "rejected" : ""}`, "data-line": u.line, style: `--lc:${cfg.color}` },
+      h("td", { class: "idc" }, u.unitId), h("td", { class: "mono" }, u.wo || "—"), h("td", { title: u.sku }, (u.sku || "—").length > 34 ? u.sku.slice(0, 32) + "…" : (u.sku || "—")),
+      h("td", { class: "mono" }, u.serial || "—"), h("td", { class: "num" }, u.qty ?? 1), h("td", null, x.zone), h("td", null, fmtD(u.target)),
+      st.map(s => h("td", { class: "tick-cell" }, h("button", { class: "tick", type: "button", "aria-pressed": String(!!(u.stations || {})[s.id]), "aria-label": `${s.id} ${u.unitId}`, disabled: !canTick || done, onclick: () => toggleStation(u, s), html: ICON.check }))),
+      h("td", null, x.resting ? h("span", { class: "pill pill-rest" }, `Rest · ${fmtShort(x.restUntil)}`) : (x.restUntil && !u.status ? h("span", { class: "pill pill-muted" }, "Rested") : "")),
+      h("td", null, statusPill(u, x)),
+      h("td", null, canTick && !done ? h("button", { class: "btn btn-sm " + (x.ready ? "btn-secondary" : "btn-ghost") + " rowbtn", type: "button", onclick: () => openQC([u]) }, "QC") : (done && S.canEdit ? h("button", { class: "btn btn-sm btn-ghost", type: "button", title: "Clear the status so the row returns to the board; the log keeps the event", onclick: () => clearStatus(u) }, "Clear") : "")));
+    tbody.append(tr);
+  }
+  card.append(h("div", { class: "tablewrap" }, h("table", null, thead, tbody)));
+}
+function statusPill(u, x) {
+  if (x.hold) return h("span", { class: "pill pill-rest" }, "On hold");
+  if (u.status) { const o = OUTCOMES[u.status] || { pill: "pill-muted" }; return h("span", { class: `pill ${o.pill}`, title: u.statusDate ? `${u.status} ${fmtD(u.statusDate)}` : u.status }, u.status.toLowerCase()); }
+  if (x.ready) return h("span", { class: "pill pill-run" }, "Ready for QC");
+  if (x.done === 0) return h("span", { class: "pill pill-muted" }, "Not started");
+  return h("span", { class: "pill pill-muted" }, `Next ${x.next ? x.next.id : ""}`);
+}
+
+async function toggleStation(u, s) {
+  if (!S.db) return toast("Not connected to shared data yet.", "err");
+  const on = !(u.stations || {})[s.id];
+  const stations = { ...(u.stations || {}), [s.id]: on };
+  const stationDates = { ...(u.stationDates || {}) };
+  if (on) stationDates[s.id] = isoDate(today()); else delete stationDates[s.id];
+  try {
+    await S.db.doc("units/" + u.id).update({ stations, stationDates, updatedAt: new Date().toISOString(), updatedBy: S.me.id });
+  } catch (e) { writeFailed(e); }
+}
+async function clearStatus(u) {
+  if (!confirmInline(`Clear ${u.unitId}'s status? The log entry stays.`)) return;
+  try { await S.db.doc("units/" + u.id).update({ status: "", statusDate: "", statusBy: "", updatedAt: new Date().toISOString(), updatedBy: S.me.id }); toast(`${u.unitId} is back on the board.`, "ok"); }
+  catch (e) { writeFailed(e); }
+}
+let pendingConfirm = null;
+function confirmInline(msg) { // no confirm() in the viewer: a toast with a confirm button, resolved on the second click
+  if (pendingConfirm === msg) { pendingConfirm = null; return true; }
+  pendingConfirm = msg; toast(msg + " Click the same button again to confirm.", ""); setTimeout(() => { if (pendingConfirm === msg) pendingConfirm = null; }, 6000); return false;
+}
+
+// ============================================================ QC drawer
+function openQC(queue) {
+  if (!queue.length) return;
+  const u = queue[0], x = derive(u), cfg = lineCfg(u.line), st = cfg.stations || [];
+  const isCart = (u.qty ?? 1) > 1;
+  const reasons = S.reasons.filter(r => (r.line === u.line || r.line === "ALL") && r.active !== false).sort((a, b) => (b.timesUsed || 0) - (a.timesUsed || 0));
+  let outcome = x.complete && !isCart ? "RELEASED" : "";
+  const f = {};
+  const body = h("div", { class: "drawer-body" },
+    h("div", { class: "ctx" },
+      ctx("Unit", u.unitId), ctx("WO", u.wo || "—"), ctx("Target", fmtD(u.target)), ctx("Zone", x.zone), ctx("Next", x.complete ? "Complete" : (x.next ? x.next.id : "—")), ctx("Qty", u.qty ?? 1)),
+    h("div", { class: "mono", style: "white-space:normal" }, u.sku || ""),
+    field("Serial number", f.serial = h("input", { class: "input big", id: "qcSerial", autocomplete: "off", placeholder: "Scan or type", value: u.serial || "" }), isCart ? "Optional for a cart." : "Required to release; optional otherwise."),
+    isCart
+      ? h("div", { class: "field" }, h("label", null, "Split this cart"), h("div", { class: "split" },
+          numField("Rework", f.rework = h("input", { class: "input", type: "number", min: 0, value: 0, id: "qcRework" })),
+          numField("B-Grade", f.bgrade = h("input", { class: "input", type: "number", min: 0, value: 0, id: "qcBgrade" })),
+          numField("Reject", f.reject = h("input", { class: "input", type: "number", min: 0, value: 0, id: "qcReject" })),
+          numField("Hold", f.holdq = h("input", { class: "input", type: "number", min: 0, value: 0, id: "qcHoldQ" }))),
+        h("div", { class: "total" }, h("span", null, "Releasing to inventory"), h("b", { id: "qcRelTotal" }, u.qty)))
+      : h("div", { class: "field" }, h("label", null, "Outcome"), h("div", { class: "opts", id: "qcOpts" },
+          Object.entries(OUTCOMES).map(([k, o]) => h("button", { type: "button", class: "opt", "data-k": k, "aria-pressed": String(outcome === k), onclick: () => { outcome = k; body.querySelectorAll(".opt").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.k === k))); refreshHint(); } }, h("b", null, o.label), h("span", null, o.help))))),
+    h("div", { class: "row2" },
+      field("Station", f.station = h("select", { class: "input", id: "qcStation" }, st.map(s => h("option", { value: s.id, selected: s.id === (x.next ? x.next.id : (st[st.length - 1] || {}).id) }, `${s.id} · ${s.name}`))), ""),
+      field("Date", f.date = h("input", { class: "input", type: "date", id: "qcDate", value: isoDate(today()) }), "")),
+    field("Reason", f.reason = h("input", { class: "input", id: "qcReason", list: "qcReasonList", autocomplete: "off", placeholder: "Type anything; picks from reasons used before" }), h("span", { id: "qcReasonHint" }, "")),
+    h("datalist", { id: "qcReasonList" }, reasons.map(r => h("option", { value: r.text }))),
+    field("Notes", f.notes = h("textarea", { class: "input", id: "qcNotes", placeholder: "What the inspector saw, what happens next" }), ""),
+  );
+  const refreshHint = () => {
+    const hint = body.querySelector("#qcReasonHint");
+    if (isCart) hint.textContent = "Required when any quantity is rework, B-grade, reject or hold.";
+    else hint.textContent = outcome === "RELEASED" ? "Optional for a release." : outcome === "ON HOLD" ? "Required. The unit shows On hold until someone returns it to the floor." : outcome ? "Required. It is remembered for next time." : "Pick an outcome first.";
+    const err = body.querySelector("#qcErr"); if (err) err.textContent = "";
+  };
+  if (isCart) { const upd = () => { const q = u.qty, t = ["rework", "bgrade", "reject", "holdq"].reduce((a, k) => a + (Number(f[k].value) || 0), 0); body.querySelector("#qcRelTotal").textContent = Math.max(0, q - t); }; ["rework", "bgrade", "reject", "holdq"].forEach(k => f[k].addEventListener("input", upd)); }
+  refreshHint();
+  const err = h("div", { class: "err", id: "qcErr", style: "min-height:16px" }); body.append(err);
+  const submit = async () => {
+    const serial = f.serial.value.trim().toUpperCase(), reason = f.reason.value.trim(), notes = f.notes.value.trim(), station = f.station.value, date = f.date.value || isoDate(today());
+    let qty = { released: 0, rework: 0, bgrade: 0, reject: 0, hold: 0 }, out = outcome;
+    if (isCart) {
+      qty.rework = Number(f.rework.value) || 0; qty.bgrade = Number(f.bgrade.value) || 0; qty.reject = Number(f.reject.value) || 0; qty.hold = Number(f.holdq.value) || 0;
+      if ([qty.rework, qty.bgrade, qty.reject, qty.hold].some(v => v < 0)) return err.textContent = "Quantities cannot be negative.";
+      const t = qty.rework + qty.bgrade + qty.reject + qty.hold; if (t > u.qty) return err.textContent = `Rework + B-grade + reject + hold cannot exceed the cart quantity (${u.qty}).`;
+      qty.released = u.qty - t;
+      if (t > 0 && !reason) return err.textContent = "Enter a reason for the units not released (free text is fine).";
+      out = qty.released === u.qty ? "RELEASED" : qty.hold === u.qty ? "ON HOLD" : qty.reject === u.qty ? "REJECTED" : qty.rework === u.qty ? "REWORK" : qty.bgrade === u.qty ? "B-GRADE" : "RELEASED";
+    } else {
+      if (!out) return err.textContent = "Pick an outcome.";
+      if (out === "RELEASED" && !serial) return err.textContent = `A serial number is required to release a ${cfg.unitNoun}.`;
+      if (out !== "RELEASED" && !reason) return err.textContent = `Enter a reason for ${OUTCOMES[out].label.toLowerCase()} (free text is fine).`;
+      qty = { released: out === "RELEASED" ? 1 : 0, rework: out === "REWORK" ? 1 : 0, bgrade: out === "B-GRADE" ? 1 : 0, reject: out === "REJECTED" ? 1 : 0, hold: out === "ON HOLD" ? 1 : 0 };
+    }
+    btnSubmit.disabled = true;
+    try {
+      await writeQC(u, x, { out, serial, reason, notes, station, date, qty, isCart });
+      toast(`${u.unitId}: ${out.toLowerCase()} logged.`, "ok");
+      closeOverlay();
+      if (queue.length > 1) openQC(queue.slice(1));
+    } catch (e) { btnSubmit.disabled = false; err.textContent = "Could not save: " + (e && e.message || e); }
+  };
+  const btnSubmit = h("button", { class: "btn btn-primary", type: "button", onclick: submit }, "Submit");
+  const foot = h("div", { class: "drawer-foot" },
+    h("div", { style: "display:flex;gap:8px" }, h("button", { class: "btn btn-cancel", type: "button", onclick: closeOverlay }, queue.length > 1 ? "Cancel all" : "Cancel"),
+      queue.length > 1 ? h("button", { class: "btn btn-ghost", type: "button", onclick: () => { closeOverlay(); openQC(queue.slice(1)); } }, "Skip") : null),
+    h("div", { style: "display:flex;gap:8px;align-items:center" }, queue.length > 1 ? h("span", { class: "mono" }, `${queue.length} in queue`) : null, btnSubmit));
+  openDrawer(h("div", { class: "drawer-head" }, h("div", { class: "eyebrow" }, `QC · ${u.line}`), h("h2", null, `${u.unitId}`), h("div", { class: "subline" }, `${cfg.name}${u.batch ? " · " + u.batch : ""}`)), body, foot);
+  setTimeout(() => f.serial.focus(), 50);
+}
+function ctx(k, v) { return h("div", null, h("div", { class: "k" }, k), h("div", { class: "v", title: String(v) }, v)); }
+function field(label, control, hint) { return h("div", { class: "field" }, h("label", { for: control.id }, label), control, hint ? h("div", { class: "hint" }, hint) : null); }
+function numField(label, control) { return h("div", { class: "field" }, h("label", { for: control.id }, label), control); }
+
+async function writeQC(u, x, q) {
+  const db = S.db; if (!db) throw new Error("not connected");
+  const ts = new Date().toISOString();
+  const ev = { ts, date: q.date, line: u.line, unitDoc: u.id, unitId: u.unitId, wo: u.wo || "", sku: u.sku || "", batch: u.batch || "", serial: q.serial, outcome: q.out, station: q.station, reason: q.reason, notes: q.notes, zone: x.zone,
+    qtyReleased: q.qty.released, qtyRework: q.qty.rework, qtyBGrade: q.qty.bgrade, qtyReject: q.qty.reject, qtyHold: q.qty.hold, by: S.me.id || null };
+  await db.collection("events").add(ev);
+  const upd = { updatedAt: ts, updatedBy: S.me.id || null };
+  if (q.serial) upd.serial = q.serial;
+  if (q.out !== "ON HOLD" || q.isCart) { upd.status = q.out === "ON HOLD" ? "" : q.out; upd.statusDate = q.date; upd.statusBy = S.me.id || null; }
+  await db.doc("units/" + u.id).update(upd);
+  if (q.qty.hold > 0) await db.collection("holds").add({ line: u.line, unitDoc: u.id, unitId: u.unitId, station: q.station, reason: [q.reason, q.notes].filter(Boolean).join(" — "), qty: q.qty.hold, dateHeld: q.date, released: false, by: S.me.id || null, ts });
+  if (q.reason) await learnReason(u.line, q.reason, q.date);
+}
+async function learnReason(line, text, date) {
+  const key = seg(`${line}_${text.toLowerCase().replace(/\s+/g, "_")}`);
+  const existing = S.reasons.find(r => r.id === key);
+  const ref = S.db.doc("reasons/" + key);
+  if (existing) await ref.update({ timesUsed: (existing.timesUsed || 0) + 1, lastUsed: date });
+  else await ref.set({ line, text, timesUsed: 1, firstSeen: date, lastUsed: date, active: true, category: "" });
+}
+
+// ============================================================ add units
+function openAddUnits() {
+  const cfg = cur(), existing = unitsOf(S.line);
+  const lastNum = existing.reduce((m, u) => { const n = parseInt(String(u.unitId).replace(/^\D+/, ""), 10); return isNaN(n) ? m : Math.max(m, n); }, 0);
+  const prefix = (existing[0] && String(existing[0].unitId).match(/^\D+/) || [cfg.unitNoun === "cart" ? "CART-" : cfg.unitNoun === "table" ? "U-" : "C-"])[0];
+  const f = {};
+  const body = h("div", { class: "drawer-body" },
+    h("div", { class: "row2" }, field("Work order", f.wo = h("input", { class: "input", id: "auWo", placeholder: "WO-…" }), ""), field("Batch / week label", f.batch = h("input", { class: "input", id: "auBatch", placeholder: existing.length ? (existing[existing.length - 1].batch || "WEEK 1") : "WEEK 1" }), "Groups the rows on the board")),
+    field("SKU", f.sku = h("input", { class: "input", id: "auSku", value: existing.length ? existing[existing.length - 1].sku : "" }), ""),
+    h("div", { class: "row2" }, field("Target date", f.target = h("input", { class: "input", type: "date", id: "auTarget" }), ""), field(`${cfg.unitNoun === "cart" ? "Carts" : "Units"} to add`, f.count = h("input", { class: "input", type: "number", min: 1, max: 200, value: 1, id: "auCount" }), "")),
+    h("div", { class: "row2" }, field("ID prefix", f.prefix = h("input", { class: "input", id: "auPrefix", value: prefix }), `Next id: ${prefix}${pad(lastNum + 1).padStart(4, "0")}`), field(cfg.unitNoun === "cart" ? "Qty per cart" : "Qty per unit", f.qty = h("input", { class: "input", type: "number", min: 1, value: 1, id: "auQty" }), cfg.unitNoun === "cart" ? "A cart splits at QC" : "Serialised units are 1")),
+    h("div", { class: "err", id: "auErr", style: "min-height:16px" }));
+  const submit = async () => {
+    const count = Math.max(1, Math.min(200, Number(f.count.value) || 1)), qty = Math.max(1, Number(f.qty.value) || 1), sku = f.sku.value.trim(), target = f.target.value || "";
+    if (!sku) return body.querySelector("#auErr").textContent = "SKU is required.";
+    btn.disabled = true;
+    try {
+      let order = existing.reduce((m, u) => Math.max(m, u.order || 0), 0);
+      for (let i = 1; i <= count; i++) {
+        const unitId = `${f.prefix.value.trim()}${String(lastNum + i).padStart(4, "0")}`;
+        order += 1;
+        await S.db.doc("units/" + seg(`${S.line}_${unitId}`)).set({ line: S.line, unitId, wo: f.wo.value.trim(), sku, serial: "", qty, batch: f.batch.value.trim() || f.batch.placeholder, target, stations: {}, stationDates: {}, status: "", statusDate: "", order, createdAt: new Date().toISOString(), createdBy: S.me.id || null });
+      }
+      toast(`${count} ${cfg.unitNoun}${count === 1 ? "" : "s"} added to ${S.line}.`, "ok"); closeOverlay();
+    } catch (e) { btn.disabled = false; body.querySelector("#auErr").textContent = "Could not save: " + (e && e.message || e); }
+  };
+  const btn = h("button", { class: "btn btn-primary", type: "button", onclick: submit }, "Add to board");
+  openDrawer(h("div", { class: "drawer-head" }, h("div", { class: "eyebrow" }, `Add units · ${S.line}`), h("h2", null, cfg.name)), body, h("div", { class: "drawer-foot" }, h("button", { class: "btn btn-cancel", type: "button", onclick: closeOverlay }, "Cancel"), btn));
+}
+
+// ============================================================ HOLDS
+function renderHolds(main) {
+  const cfg = cur(), open = S.holds.filter(x => x.line === S.line && !x.released).sort((a, b) => (b.ts || "").localeCompare(a.ts || ""));
+  const all = S.holds.filter(x => x.line === S.line).sort((a, b) => (b.ts || "").localeCompare(a.ts || ""));
+  main.append(titleRow("Holds", `${open.length} ${cfg.unitNoun}${open.length === 1 ? "" : "s"} held on ${S.line}`, lineSeg(false)));
+  const card = h("div", { class: "card" }, h("div", { class: "card-head" }, h("h2", null, "Holds"), h("span", { class: "meta" }, "A hold stops the unit at a station. Return it to the floor when the issue is cleared.")));
+  if (!all.length) card.append(h("div", { class: "empty" }, h("h3", null, "No holds"), h("p", null, `Put a ${cfg.unitNoun} on hold from its QC form; it appears here with the station and reason.`)));
+  else card.append(h("div", { class: "tablewrap" }, h("table", null, h("thead", null, h("tr", null, h("th", null, "Unit"), h("th", null, "Station"), h("th", null, "Reason"), h("th", null, "Held"), h("th", null, "By"), h("th", null, "State"), h("th", null, ""))),
+    h("tbody", null, all.map(x => h("tr", { class: x.released ? "done" : "" }, h("td", { class: "idc" }, x.unitId), h("td", null, x.station || "—"), h("td", { style: "white-space:normal;min-width:240px" }, x.reason || "—"), h("td", null, fmtD(x.dateHeld)), h("td", { class: "who", "data-id": x.by || "" }, "…"),
+      h("td", null, x.released ? h("span", { class: "pill pill-ok" }, `Returned ${fmtShort(parseDate(x.releasedAt) || new Date())}`) : h("span", { class: "pill pill-rest" }, "Held")),
+      h("td", null, !x.released && S.canWrite !== false ? h("button", { class: "btn btn-sm btn-secondary", type: "button", onclick: () => releaseHold(x) }, "Return to floor") : "")))))));
+  main.append(card); resolveNames(card);
+}
+async function releaseHold(x) {
+  try { await S.db.doc("holds/" + x.id).update({ released: true, releasedAt: isoDate(today()), releasedBy: S.me.id || null }); toast(`${x.unitId} returned to the floor.`, "ok"); } catch (e) { writeFailed(e); }
+}
+
+// ============================================================ LOG
+function renderLog(main) {
+  const cfg = cur();
+  let evs = S.events.filter(e => e.line === S.line);
+  if (S.logFilter !== "all") evs = evs.filter(e => e.outcome === S.logFilter);
+  main.append(titleRow("QC log", `${evs.length} event${evs.length === 1 ? "" : "s"} on ${S.line} · newest first`, lineSeg(false)));
+  main.append(h("div", { class: "toolbar" },
+    h("div", { class: "chips" }, [["all", "All"], ...Object.entries(OUTCOMES).map(([k, o]) => [k, o.label])].map(([k, l]) => h("button", { class: "chip", type: "button", "aria-pressed": String(S.logFilter === k), onclick: () => { S.logFilter = k; render(); } }, l))),
+    h("div", { class: "grow" }),
+    h("button", { class: "btn btn-standard", type: "button", onclick: () => exportCsv(evs) }, h("span", { html: ICON.dl }), "Export CSV")));
+  const card = h("div", { class: "card" });
+  if (!evs.length) card.append(h("div", { class: "empty" }, h("h3", null, "No events yet"), h("p", null, "Every QC submit lands here with who, when, station, reason and the quantity split. Nothing is ever edited in place.")));
+  else card.append(h("div", { class: "tablewrap" }, h("table", null, h("thead", null, h("tr", null, h("th", null, "When"), h("th", null, "Unit"), h("th", null, "Serial"), h("th", null, "Outcome"), h("th", null, "Station"), h("th", { class: "num" }, "Rel"), h("th", { class: "num" }, "Rwk"), h("th", { class: "num" }, "B"), h("th", { class: "num" }, "Rej"), h("th", null, "Reason"), h("th", null, "By"), S.canEdit ? h("th", null, "") : null)),
+    h("tbody", null, evs.map(e => h("tr", null, h("td", null, fmtTs(e.ts)), h("td", { class: "idc" }, e.unitId), h("td", { class: "mono" }, e.serial || "—"), h("td", null, h("span", { class: `pill ${(OUTCOMES[e.outcome] || { pill: "pill-muted" }).pill}` }, (e.outcome || "").toLowerCase())), h("td", null, e.station || "—"),
+      h("td", { class: "num" }, e.qtyReleased ?? 0), h("td", { class: "num" }, e.qtyRework ?? 0), h("td", { class: "num" }, e.qtyBGrade ?? 0), h("td", { class: "num" }, e.qtyReject ?? 0), h("td", { style: "white-space:normal;min-width:220px", title: e.notes || "" }, e.reason || "", e.notes ? h("span", { class: "mono" }, ` — ${e.notes}`) : null), h("td", { class: "who", "data-id": e.by || "" }, "…"),
+      S.canEdit ? h("td", null, h("button", { class: "btn btn-sm btn-ghost", type: "button", title: "Delete this event (admin). The unit's status is not changed.", onclick: () => deleteEvent(e) }, "Delete")) : null))))));
+  main.append(card); resolveNames(card);
+}
+async function deleteEvent(e) { if (!confirmInline(`Delete the ${e.outcome} event for ${e.unitId}?`)) return; try { await S.db.doc("events/" + e.id).delete(); toast("Event deleted.", "ok"); } catch (x) { writeFailed(x); } }
+async function exportCsv(evs) {
+  const cols = ["ts", "date", "line", "unitId", "wo", "sku", "batch", "serial", "outcome", "station", "qtyReleased", "qtyRework", "qtyBGrade", "qtyReject", "qtyHold", "reason", "notes", "zone", "by"];
+  const csv = [cols.join(","), ...evs.map(e => cols.map(c => { const v = e[c] ?? ""; return /[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v); }).join(","))].join("\n");
+  const dl = await window.claude?.use?.("downloads");
+  if (dl) { try { await dl.save({ filename: `floor-mkr_${S.line}_events_${isoDate(today())}.csv`, data: csv }); toast("CSV offered for download.", "ok"); return; } catch (e) { if (e && e.code === "not_granted") {} else return toast("Download declined or unavailable.", ""); } }
+  try { await navigator.clipboard.writeText(csv); toast("Download is not available here; the CSV was copied to the clipboard.", ""); } catch { toast("Neither download nor clipboard is available in this view.", "err"); }
+}
+
+// ============================================================ PLAN
+function renderPlan(main) {
+  const cfg = cur(), wk0 = monday(today()), weeks = []; for (let i = -2; i < 14; i++) weeks.push(addDays(wk0, i * 7));
+  const plans = S.plan.filter(p => p.line === S.line);
+  const skus = [...new Set([...plans.map(p => p.sku), ...unitsOf(S.line).map(u => u.sku)].filter(Boolean))].sort();
+  main.append(titleRow("Production plan", `Planned starts per week for ${cfg.name} · weeks run Monday to Sunday`, lineSeg(false)));
+  const card = h("div", { class: "card plan" }, h("div", { class: "card-head" }, h("h2", null, "Planned starts"), h("span", { class: "meta" }, S.canWrite !== false ? "Type into a cell and tab away to save. Blank or 0 removes it." : "Read-only")));
+  const key = (sku, d) => `${S.line}_${isoDate(d)}_${seg(sku)}`;
+  const val = (sku, d) => { const p = plans.find(p => p.id === key(sku, d)); return p ? p.qty : ""; };
+  const tbl = h("table", null, h("thead", null, h("tr", null, h("th", null, "SKU"), weeks.map(w => h("th", { class: `num ${+w === +wk0 ? "cur" : ""}` }, fmtShort(w))), h("th", { class: "num" }, "Total"))),
+    h("tbody", null, skus.map(sku => h("tr", null, h("td", { title: sku }, sku.length > 40 ? sku.slice(0, 38) + "…" : sku), weeks.map(w => h("td", { class: `num ${+w === +wk0 ? "cur" : ""}` }, h("input", { type: "number", min: 0, value: val(sku, w), "aria-label": `${sku} ${fmtShort(w)}`, disabled: S.canWrite === false, onchange: e => savePlan(sku, w, e.target.value) }))), h("td", { class: "num" }, plans.filter(p => p.sku === sku).reduce((a, p) => a + (p.qty || 0), 0))))),
+    h("tfoot", null, h("tr", null, h("td", null, "Weekly total"), weeks.map(w => { const t = plans.filter(p => p.weekStart === isoDate(w)).reduce((a, p) => a + (p.qty || 0), 0); return h("td", { class: `num ${+w === +wk0 ? "cur" : ""}` }, t || ""); }), h("td", { class: "num" }, plans.reduce((a, p) => a + (p.qty || 0), 0)))));
+  if (!skus.length) card.append(h("div", { class: "empty" }, h("h3", null, "No SKUs yet"), h("p", null, "Add a SKU below, or add units to the board; its SKU appears here automatically.")));
+  else card.append(h("div", { class: "tablewrap" }, tbl));
+  if (S.canWrite !== false) {
+    const inp = h("input", { class: "input", placeholder: "New SKU", id: "planNewSku", style: "max-width:360px" });
+    card.append(h("div", { class: "card-body", style: "display:flex;gap:8px;flex-wrap:wrap" }, inp, h("button", { class: "btn btn-standard", type: "button", onclick: () => { const s = inp.value.trim(); if (!s) return; savePlan(s, wk0, 0, true); } }, h("span", { html: ICON.plus }), "Add SKU row")));
+  }
+  main.append(card);
+}
+async function savePlan(sku, week, value, force) {
+  const id = `${S.line}_${isoDate(week)}_${seg(sku)}`, qty = Number(value) || 0, ref = S.db.doc("plan/" + id);
+  try {
+    if (qty <= 0 && !force) { if (S.plan.find(p => p.id === id)) await ref.delete(); }
+    else await ref.set({ line: S.line, weekStart: isoDate(week), sku, qty, updatedAt: new Date().toISOString(), updatedBy: S.me.id || null });
+  } catch (e) { writeFailed(e); }
+}
+
+// ============================================================ LINES (manager)
+function periodStart(p) { const t = today(); return p === "WTD" ? monday(t) : p === "MTD" ? new Date(t.getFullYear(), t.getMonth(), 1) : new Date(t.getFullYear(), 0, 1); }
+function sumIn(line, from, to) {
+  const a = isoDate(from), b = isoDate(to), r = { planned: 0, released: 0, rework: 0, bgrade: 0, reject: 0 };
+  for (const p of S.plan) if (p.line === line && p.weekStart >= a && p.weekStart <= b) r.planned += p.qty || 0;
+  for (const e of S.events) if (e.line === line && e.date >= a && e.date <= b) { r.released += e.qtyReleased || 0; r.rework += e.qtyRework || 0; r.bgrade += e.qtyBGrade || 0; r.reject += e.qtyReject || 0; }
+  const tot = r.released + r.rework + r.bgrade + r.reject;
+  r.attain = r.planned ? r.released / r.planned : null; r.fpy = tot ? r.released / tot : null; r.rejPct = tot ? r.reject / tot : null; r.rwkPct = tot ? r.rework / tot : null; r.tot = tot;
+  return r;
+}
+function flags(r) {
+  const T = S.targets;
+  const thr = r.attain == null ? ["none", "—"] : r.attain >= T.attainment ? ["ok", "On plan"] : r.attain >= T.attainment - 0.1 ? ["watch", "Watch"] : ["act", "Behind"];
+  const q = r.fpy == null ? ["none", "—"] : (r.fpy >= T.fpy && r.rejPct <= T.reject && r.rwkPct <= T.rework) ? ["ok", "Good"] : (r.rejPct > 2 * T.reject || r.fpy < T.fpy - 0.1) ? ["act", "Act"] : ["watch", "Watch"];
+  return [thr, q];
+}
+const flagEl = ([k, l]) => h("span", { class: `flag flag-${k}` }, k === "ok" ? "●" : k === "watch" ? "▲" : k === "act" ? "■" : "", l);
+
+function renderLines(main) {
+  const ids = lineIds(), t = today();
+  main.append(h("div", { class: "titlerow" },
+    h("div", null, h("div", { class: "eyebrow" }, "All lines"), h("h1", null, "Throughput & quality"), h("div", { class: "subline" }, `REVO · TABLE · WOOD · as of ${fmtD(t)} · what happened, why, and what to do`)),
+    h("div", { class: "seg", role: "group", "aria-label": "Period" }, ["WTD", "MTD", "YTD"].map(p => h("button", { type: "button", "aria-pressed": String(S.period === p), onclick: () => { S.period = p; render(); } }, p)))));
+  const from = periodStart(S.period), rows = ids.map(id => [id, sumIn(id, from, t)]);
+  const totals = rows.reduce((a, [, r]) => { for (const k of ["planned", "released", "rework", "bgrade", "reject"]) a[k] += r[k]; return a; }, { planned: 0, released: 0, rework: 0, bgrade: 0, reject: 0 });
+  const tt = totals.released + totals.rework + totals.bgrade + totals.reject;
+  Object.assign(totals, { attain: totals.planned ? totals.released / totals.planned : null, fpy: tt ? totals.released / tt : null, rejPct: tt ? totals.reject / tt : null, rwkPct: tt ? totals.rework / tt : null });
+  const kpi = h("div", { class: "card span12" }, h("div", { class: "card-head" }, h("h2", null, `${S.period === "WTD" ? "Week" : S.period === "MTD" ? "Month" : "Year"} to date`), h("span", { class: "meta" }, `${fmtShort(from)} to ${fmtShort(t)} · planned counts weeks whose Monday falls in the period`)),
+    h("div", { class: "tablewrap" }, h("table", null, h("thead", null, h("tr", null, h("th", null, "Line"), h("th", { class: "num" }, "Planned"), h("th", { class: "num" }, "Released"), h("th", { class: "num" }, "Rework"), h("th", { class: "num" }, "B-grade"), h("th", { class: "num" }, "Reject"), h("th", { class: "num" }, "Attainment"), h("th", { class: "num" }, "First pass yield"), h("th", { class: "num" }, "Reject %"), h("th", { class: "num" }, "Rework %"), h("th", null, "Throughput"), h("th", null, "Quality"))),
+      h("tbody", null, [...rows, ["TOTAL", totals]].map(([id, r]) => { const [f1, f2] = flags(r); return h("tr", { style: id === "TOTAL" ? "font-weight:600" : "" }, h("td", null, id !== "TOTAL" ? h("span", { style: `display:inline-block;width:8px;height:8px;border-radius:50%;background:${lineCfg(id).color};margin-right:8px;vertical-align:1px` }) : null, id), h("td", { class: "num" }, r.planned), h("td", { class: "num" }, r.released), h("td", { class: "num" }, r.rework), h("td", { class: "num" }, r.bgrade), h("td", { class: "num" }, r.reject), h("td", { class: "num" }, pct(r.attain)), h("td", { class: "num" }, pct(r.fpy)), h("td", { class: "num" }, pct(r.rejPct)), h("td", { class: "num" }, pct(r.rwkPct)), h("td", null, flagEl(f1)), h("td", null, flagEl(f2))); })))));
+  // 13-week trend
+  const weeks = []; for (let i = 12; i >= 0; i--) weeks.push(addDays(monday(t), -7 * i));
+  const series = ids.map(id => weeks.map(w => sumIn(id, w, addDays(w, 6))));
+  const grid = h("div", { class: "grid" }, kpi);
+  ids.forEach((id, i) => grid.append(h("div", { class: "card span4" }, h("div", { class: "card-head" }, h("h2", null, `${id} · released vs planned`), h("span", { class: "meta" }, "13 weeks")), h("div", { class: "card-body", style: "padding:8px 12px 4px" }, barChart(weeks, series[i], lineCfg(id).color)), h("div", { class: "legend" }, h("span", null, h("i", { style: "background:var(--plan-bar)" }), "Planned"), h("span", null, h("i", { style: `background:${lineCfg(id).color}` }), "Released")))));
+  grid.append(h("div", { class: "card span6" }, h("div", { class: "card-head" }, h("h2", null, "First pass yield by line"), h("span", { class: "meta" }, "13 weeks")), h("div", { class: "card-body", style: "padding:8px 12px 4px" }, lineChart(weeks, ids.map((id, i) => ({ id, color: lineCfg(id).color, vals: series[i].map(r => r.fpy) })), [0, 1])), legend(ids)));
+  grid.append(h("div", { class: "card span6" }, h("div", { class: "card-head" }, h("h2", null, "Reject % by line"), h("span", { class: "meta" }, "13 weeks")), h("div", { class: "card-body", style: "padding:8px 12px 4px" }, lineChart(weeks, ids.map((id, i) => ({ id, color: lineCfg(id).color, vals: series[i].map(r => r.rejPct) })), null)), legend(ids)));
+  // Pareto
+  const since = isoDate(addDays(monday(t), -7 * 12));
+  ids.forEach(id => {
+    const m = new Map();
+    for (const e of S.events) if (e.line === id && e.date >= since && (e.qtyReject || 0) > 0) { const k = (e.reason || "(no reason recorded)").trim(); m.set(k, (m.get(k) || 0) + e.qtyReject); }
+    const list = [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6), tot = [...m.values()].reduce((a, b) => a + b, 0);
+    grid.append(h("div", { class: "card span4" }, h("div", { class: "card-head" }, h("h2", null, `${id} · why rejected`), h("span", { class: "meta" }, `${tot} rejected · 13 wk`)),
+      h("div", { class: "card-body pareto", style: `--lc:${lineCfg(id).color}` }, list.length ? h("ul", null, list.map(([k, v]) => h("li", null, h("span", { style: "white-space:normal" }, k), h("span", { class: "num" }, `${v} · ${pct(v / tot)}`), h("div", { class: "bar" }, h("i", { style: `width:${(v / list[0][1]) * 100}%` }))))) : h("div", { class: "empty", style: "padding:16px" }, h("p", null, "No rejects in the last 13 weeks.")))));
+  });
+  // Targets
+  grid.append(h("div", { class: "card span12" }, h("div", { class: "card-head" }, h("h2", null, "Targets"), h("span", { class: "meta" }, S.canEdit ? "Editors change these; the flags follow." : "Set by the editors")),
+    h("div", { class: "card-body targets" }, [["attainment", "Attainment at least"], ["fpy", "First pass yield at least"], ["reject", "Reject % at most"], ["rework", "Rework % at most"]].map(([k, l]) => h("div", { class: "field" }, h("label", { for: "t_" + k }, l), h("input", { class: "input", id: "t_" + k, type: "number", min: 0, max: 100, step: 1, value: Math.round((S.targets[k] || 0) * 100), disabled: !S.canEdit, onchange: e => saveTarget(k, e.target.value) }), h("div", { class: "hint" }, "percent"))))));
+  main.append(grid);
+}
+function legend(ids) { return h("div", { class: "legend" }, ids.map(id => h("span", null, h("i", { style: `background:${lineCfg(id).color}` }), id))); }
+async function saveTarget(k, v) { const n = Math.max(0, Math.min(100, Number(v) || 0)) / 100; try { await S.db.doc("settings/targets").set({ ...S.targets, [k]: n, updatedAt: new Date().toISOString(), updatedBy: S.me.id || null }); } catch (e) { writeFailed(e); } }
+
+const NS = "http://www.w3.org/2000/svg";
+const sv = (tag, attrs = {}, ...kids) => { const el = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v); for (const kid of kids) el.append(kid.nodeType ? kid : document.createTextNode(kid)); return el; };
+function barChart(weeks, rows, color) {
+  const W = 420, H = 190, L = 34, R = 8, T = 10, B = 28, iw = W - L - R, ih = H - T - B;
+  const max = Math.max(1, ...rows.map(r => Math.max(r.planned, r.released)));
+  const step = max <= 4 ? 1 : max <= 20 ? 5 : max <= 100 ? 25 : max <= 400 ? 100 : 250;   // quarter ticks land on whole numbers
+  const nice = Math.ceil(max / (4 * step)) * 4 * step;
+  const svg = sv("svg", { class: "chart", viewBox: `0 0 ${W} ${H}`, role: "img", "aria-label": "Released vs planned per week" });
+  for (let i = 0; i <= 4; i++) { const y = T + ih - (ih * i) / 4; svg.append(sv("line", { class: "grid", x1: L, x2: W - R, y1: y, y2: y })); svg.append(sv("text", { x: L - 6, y: y + 4, "text-anchor": "end" }, String(Math.round((nice * i) / 4)))); }
+  const bw = iw / weeks.length, gap = bw * 0.22, half = (bw - gap) / 2;
+  rows.forEach((r, i) => {
+    const x = L + i * bw + gap / 2, hp = (r.planned / nice) * ih, hr = (r.released / nice) * ih;
+    svg.append(sv("rect", { x, y: T + ih - hp, width: half - 1, height: hp, fill: "var(--plan-bar)", rx: 2 }));
+    svg.append(sv("rect", { x: x + half + 1, y: T + ih - hr, width: half - 1, height: hr, fill: color, rx: 2 }));
+    const t = sv("title", {}, `${fmtShort(weeks[i])}: planned ${r.planned}, released ${r.released}`); svg.append(t);
+    if (i % 3 === 0 || i === weeks.length - 1) svg.append(sv("text", { x: x + half, y: H - 8, "text-anchor": "middle" }, fmtShort(weeks[i])));
+  });
+  svg.append(sv("line", { class: "axis", x1: L, x2: W - R, y1: T + ih, y2: T + ih }));
+  return svg;
+}
+function lineChart(weeks, ser, fixed) {
+  const W = 640, H = 200, L = 40, R = 10, T = 10, B = 28, iw = W - L - R, ih = H - T - B;
+  const vals = ser.flatMap(s => s.vals).filter(v => v != null);
+  const max = fixed ? fixed[1] : Math.max(0.05, ...vals) * 1.15;
+  const svg = sv("svg", { class: "chart", viewBox: `0 0 ${W} ${H}`, role: "img" });
+  for (let i = 0; i <= 4; i++) { const y = T + ih - (ih * i) / 4; svg.append(sv("line", { class: "grid", x1: L, x2: W - R, y1: y, y2: y })); svg.append(sv("text", { x: L - 6, y: y + 4, "text-anchor": "end" }, pct((max * i) / 4))); }
+  const xs = i => L + (iw * (i + 0.5)) / weeks.length;
+  weeks.forEach((w, i) => { if (i % 2 === 0) svg.append(sv("text", { x: xs(i), y: H - 8, "text-anchor": "middle" }, fmtShort(w))); });
+  for (const s of ser) {
+    let d = "", pen = false;
+    s.vals.forEach((v, i) => { if (v == null) { pen = false; return; } const x = xs(i), y = T + ih - (Math.min(v, max) / max) * ih; d += (pen ? "L" : "M") + x.toFixed(1) + " " + y.toFixed(1); pen = true; });
+    if (d) svg.append(sv("path", { d, fill: "none", stroke: s.color, "stroke-width": 2, "stroke-linejoin": "round", "stroke-linecap": "round" }));
+    s.vals.forEach((v, i) => { if (v == null) return; const c = sv("circle", { cx: xs(i), cy: T + ih - (Math.min(v, max) / max) * ih, r: 3.5, fill: s.color, stroke: "var(--surface)", "stroke-width": 1.5 }); c.append(sv("title", {}, `${s.id} ${fmtShort(weeks[i])}: ${pct(v)}`)); svg.append(c); });
+    const last = [...s.vals].map((v, i) => [v, i]).filter(([v]) => v != null).pop();
+    if (last) svg.append(sv("text", { x: xs(last[1]) + 8, y: T + ih - (Math.min(last[0], max) / max) * ih + 4, style: `fill:${s.color};font-weight:600` }, s.id));
+  }
+  svg.append(sv("line", { class: "axis", x1: L, x2: W - R, y1: T + ih, y2: T + ih }));
+  return svg;
+}
+
+// ============================================================ setup (admin)
+function openSetup() {
+  if (!S.canEdit) return toast("Only editors can change the setup.", "");
+  const lines = JSON.parse(JSON.stringify((S.config && S.config.lines) || LINE_DEFAULT));
+  let pick = S.line;
+  const body = h("div", { class: "drawer-body" });
+  const draw = () => {
+    body.replaceChildren();
+    const cfg = lines[pick];
+    body.append(h("div", { class: "seg" }, Object.keys(lines).map(id => h("button", { type: "button", "aria-pressed": String(pick === id), style: `--c:${lines[id].color || "var(--faint)"}`, onclick: () => { pick = id; draw(); } }, h("i"), id))));
+    body.append(h("div", { class: "row2" }, field("Line name", h("input", { class: "input", id: "suName", value: cfg.name || "", oninput: e => cfg.name = e.target.value }), ""), field("Unit noun", h("input", { class: "input", id: "suNoun", value: cfg.unitNoun || "", oninput: e => cfg.unitNoun = e.target.value }), "cart · table · cue")));
+    const tbl = h("table", { class: "setup-table" }, h("thead", null, h("tr", null, h("th", null, "Id"), h("th", null, "Station"), h("th", null, "Zone"), h("th", null, "Rest days after"), h("th", null, ""))),
+      h("tbody", null, (cfg.stations || []).map((s, i) => h("tr", null, h("td", null, h("input", { class: "w-s", value: s.id, oninput: e => s.id = e.target.value.trim() })), h("td", null, h("input", { value: s.name || "", oninput: e => s.name = e.target.value })), h("td", null, h("input", { value: s.zone || "", oninput: e => s.zone = e.target.value })), h("td", null, h("input", { class: "w-s", type: "number", min: 0, value: s.restDays || 0, oninput: e => s.restDays = Number(e.target.value) || 0 })),
+        h("td", null, h("button", { class: "btn btn-sm btn-ghost", type: "button", onclick: () => { cfg.stations.splice(i, 1); draw(); } }, "Remove"))))));
+    body.append(h("div", { class: "field" }, h("label", null, "Stations, in order"), h("div", { class: "tablewrap" }, tbl), h("button", { class: "btn btn-standard btn-sm", type: "button", style: "align-self:flex-start", onclick: () => { (cfg.stations = cfg.stations || []).push({ id: `S${String((cfg.stations.length || 0) + 1).padStart(2, "0")}`, name: "", zone: "", restDays: 0 }); draw(); } }, "Add station"),
+      h("div", { class: "hint" }, "Station ids are the keys on every unit's ticks: renaming an id orphans existing ticks for it. Add and remove freely; rename only before units exist.")));
+    const rs = S.reasons.filter(r => r.line === pick || r.line === "ALL");
+    body.append(h("div", { class: "field" }, h("label", null, `Reasons learned on ${pick} (${rs.length})`), rs.length ? h("div", { class: "tablewrap" }, h("table", { class: "setup-table" }, h("tbody", null, rs.sort((a, b) => (b.timesUsed || 0) - (a.timesUsed || 0)).map(r => h("tr", null, h("td", { style: "white-space:normal" }, r.text), h("td", { class: "num" }, r.timesUsed || 0), h("td", null, h("input", { placeholder: "Category (later)", value: r.category || "", onchange: e => S.db.doc("reasons/" + r.id).update({ category: e.target.value }).catch(writeFailed) })), h("td", null, h("button", { class: "btn btn-sm " + (r.active === false ? "btn-standard" : "btn-ghost"), type: "button", onclick: () => S.db.doc("reasons/" + r.id).update({ active: r.active === false }).then(draw).catch(writeFailed) }, r.active === false ? "Reactivate" : "Hide"))))))) : h("div", { class: "hint" }, "Reasons appear as the QC form learns them.")));
+  };
+  draw();
+  const save = async () => {
+    for (const [id, cfg] of Object.entries(lines)) { cfg.stations = (cfg.stations || []).filter(s => s.id); const ids = cfg.stations.map(s => s.id); if (new Set(ids).size !== ids.length) return toast(`${id}: station ids must be unique.`, "err"); }
+    try { await S.db.doc("config/lines").set({ lines, updatedAt: new Date().toISOString(), updatedBy: S.me.id || null }); toast("Setup saved.", "ok"); closeOverlay(); } catch (e) { writeFailed(e); }
+  };
+  openPanel(h("div", { class: "drawer-head" }, h("div", { class: "eyebrow" }, "Setup"), h("h2", null, "Lines & stations")), body, h("div", { class: "drawer-foot" }, h("button", { class: "btn btn-cancel", type: "button", onclick: closeOverlay }, "Cancel"), h("button", { class: "btn btn-primary", type: "button", onclick: save }, "Save setup")));
+}
+
+// ============================================================ overlays, prefs, toasts
+function openDrawer(head, body, foot) { closeOverlay(); const scrim = h("div", { class: "scrim", onclick: e => { if (e.target === scrim) closeOverlay(); } }, h("aside", { class: "drawer", role: "dialog", "aria-modal": "true" }, head, body, foot)); $("#overlay").append(scrim); S.overlay = scrim; }
+function openPanel(head, body, foot) { closeOverlay(); const d = h("div", { class: "dialog", onclick: e => { if (e.target === d) closeOverlay(); } }, h("div", { class: "panel", role: "dialog", "aria-modal": "true" }, head, body, foot)); $("#overlay").append(d); S.overlay = d; }
+function closeOverlay() { if (S.overlay) { S.overlay.remove(); S.overlay = null; } }
+document.addEventListener("keydown", e => { if (e.key === "Escape") { closeOverlay(); closePrefs(); } });
+function toast(msg, kind) { const t = h("div", { class: `toast ${kind || ""}` }, msg); $("#toasts").append(t); setTimeout(() => t.remove(), kind === "err" ? 7000 : 4500); }
+function writeFailed(e) { const code = e && e.code; toast(code === "invalid_argument" ? "This change was refused. You may not have Contributor access to this board." : code === "quota_exceeded" ? "The shared database is full. Ask an editor to archive old events." : "Could not save: " + (e && e.message || e), "err"); if (code === "invalid_argument" && S.canWrite == null) { S.canWrite = false; render(); } }
+
+function applyTheme(t) { if (t && t !== "system") document.documentElement.setAttribute("data-pg-theme", t); else document.documentElement.removeAttribute("data-pg-theme"); ls.set("floor.theme", t || "system"); }
+function applyDensity(d) { document.documentElement.dataset.density = d; document.body.style.fontSize = d === "compact" ? "13px" : ""; ls.set("floor.density", d); }
+applyTheme(ls.get("floor.theme")); applyDensity(ls.get("floor.density") || "comfortable");
+function closePrefs() { $("#prefs").hidden = true; S.prefsOpen = false; }
+$("#btnPrefs").addEventListener("click", e => { e.stopPropagation(); if (S.prefsOpen) return closePrefs(); const m = $("#prefs"); m.replaceChildren(
+  h("div", { class: "eyebrow" }, "Theme"), h("div", { class: "seg" }, [["system", "Auto"], ["dark", "Dark"], ["light", "Light"], ["blue", "Blue"]].map(([k, l]) => h("button", { type: "button", "aria-pressed": String((ls.get("floor.theme") || "system") === k), onclick: () => { applyTheme(k); closePrefs(); } }, l))),
+  h("div", { class: "eyebrow" }, "Density"), h("div", { class: "seg" }, [["comfortable", "Comfortable"], ["compact", "Compact"]].map(([k, l]) => h("button", { type: "button", "aria-pressed": String((ls.get("floor.density") || "comfortable") === k), onclick: () => { applyDensity(k); closePrefs(); } }, l))),
+  S.canEdit ? h("hr") : null, S.canEdit ? h("button", { class: "btn btn-standard", type: "button", onclick: () => { closePrefs(); openSetup(); } }, "Setup: lines, stations, reasons") : null);
+  m.hidden = false; S.prefsOpen = true; });
+document.addEventListener("click", e => { if (S.prefsOpen && !$("#prefs").contains(e.target)) closePrefs(); });
+$("#btnHelp").addEventListener("click", () => openPanel(h("div", { class: "drawer-head" }, h("div", { class: "eyebrow" }, "Help"), h("h2", null, "How the floor works")),
+  h("div", { class: "drawer-body", style: "font-size:13px;line-height:1.6" },
+    h("p", { style: "margin:0" }, h("b", null, "Floor"), " — one row per serialised unit (or cart on REVO). Tick a station when it completes; the tick is shared with everyone instantly. When every station is ticked the row says Ready for QC."),
+    h("p", { style: "margin:0" }, h("b", null, "Rest"), " — on WOOD, ticking a turning stage starts its rest clock. The row shows Rest until the date; the next station can still be ticked, the board just tells you the wood is not ready."),
+    h("p", { style: "margin:0" }, h("b", null, "QC"), " — serial, outcome (Release, B-Grade, Rework, Reject, Hold), station, a free-text reason and notes. Every submit writes one event to the Log; reasons are remembered and offered next time. A cart is split by quantities instead."),
+    h("p", { style: "margin:0" }, h("b", null, "Holds"), " — a held unit shows On hold on the board until someone returns it to the floor."),
+    h("p", { style: "margin:0" }, h("b", null, "Plan"), " — planned starts per SKU per week. Lines compares it with what was released."),
+    h("p", { style: "margin:0" }, h("b", null, "Lines"), " — the manager's view: planned vs released, first pass yield, reject and rework rates against targets, 13-week trends and the reasons behind rejects."),
+    h("p", { style: "margin:0;color:var(--muted)" }, "Viewers see everything. Contributors tick, QC and plan. Editors add units, change setup and targets, and delete log events.")),
+  h("div", { class: "drawer-foot" }, h("span"), h("button", { class: "btn btn-standard", type: "button", onclick: closeOverlay }, "Close"))));
+
+async function resolveNames(root) {
+  const cells = [...root.querySelectorAll(".who[data-id]")]; if (!cells.length) return;
+  const ids = [...new Set(cells.map(c => c.dataset.id).filter(Boolean))];
+  if (!S.user || !ids.length) { cells.forEach(c => c.textContent = c.dataset.id ? "Someone" : "—"); return; }
+  try { const ps = await S.user.profiles(ids); cells.forEach(c => { const p = c.dataset.id && ps[c.dataset.id]; c.textContent = c.dataset.id ? ((p && p.name) || (p && p.isMe ? "you" : "Someone")) : "—"; }); } catch { cells.forEach(c => c.textContent = c.dataset.id ? "Someone" : "—"); }
+}
+
+// ============================================================ boot
+route();
+(async () => {
+  const [db, user] = await Promise.all([window.claude?.use?.("db"), window.claude?.use?.("user")]);
+  S.db = db || null; S.user = user || null;
+  if (user) {
+    try { const me = await user.me(); S.me = { id: me.id, name: me.name }; $("#hdrUser").textContent = me.name || ""; S.canEdit = !!me.canEdit; const w = await user.can("data.write"); S.canWrite = w; } catch {}
+  }
+  if (!db) { $("#conn").dataset.state = "error"; $("#connLbl").textContent = "Not connected"; S.loaded.units = true; S.offline = false; render(); $("#main").prepend(h("div", { class: "notice warn" }, "Shared data is not available in this view. Open the page signed in to claude.ai to use the board.")); return; }
+  const timer = setTimeout(() => { S.offline = true; $("#conn").dataset.state = "error"; $("#connLbl").textContent = "Reconnecting"; render(); }, 10000);
+  const live = () => { clearTimeout(timer); if (S.offline) { S.offline = false; } $("#conn").dataset.state = "ok"; $("#connLbl").textContent = "Live"; };
+  const onErr = what => e => { console.error(what, e); if (e && e.code === "revoked") { $("#conn").dataset.state = "error"; $("#connLbl").textContent = "Access changed"; } };
+  const docs = snap => snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  db.doc("config/lines").onSnapshot(s => { if (s.exists) S.config = s.data(); S.loaded.config = true; if (!s.metadata.fromCache) live(); render(); }, onErr("config"));
+  db.doc("settings/targets").onSnapshot(s => { if (s.exists) S.targets = { ...S.targets, ...s.data() }; render(); }, onErr("targets"));
+  db.collection("units").onSnapshot(s => { S.units = docs(s); S.loaded.units = true; if (!s.metadata.fromCache) live(); render(); }, onErr("units"));
+  db.collection("holds").onSnapshot(s => { S.holds = docs(s); render(); }, onErr("holds"));
+  db.collection("events").orderBy("ts", "desc").limit(1000).onSnapshot(s => { S.events = docs(s); render(); }, onErr("events"));
+  db.collection("plan").onSnapshot(s => { S.plan = docs(s); render(); }, onErr("plan"));
+  db.collection("reasons").onSnapshot(s => { S.reasons = docs(s); }, onErr("reasons"));
+})();
+})();
+</script>
