@@ -305,6 +305,7 @@ const h = (tag, attrs, ...kids) => {
     else if (k === "html") el.innerHTML = v;
     else if (k.startsWith("on")) el.addEventListener(k.slice(2), v);
     else if (k === "style") el.style.cssText = v;
+    else if (k === "value" && tag === "textarea") el.value = v;
     else if (v === true) el.setAttribute(k, "");
     else el.setAttribute(k, v);
   }
@@ -350,7 +351,7 @@ const S = {
   overlay: null, prefsOpen: false,
 };
 const LINE_DEFAULT = {
-  REVO: { name: "REVO carbon shafts", unitNoun: "cart", color: "var(--line-REVO)", stations: [] },
+  REVO: { name: "REVO carbon shafts", unitNoun: "cart", color: "var(--line-REVO)", partialRelease: true, stations: [] },
   TABLE: { name: "Pool tables", unitNoun: "table", color: "var(--line-TABLE)", stations: [] },
   WOOD: { name: "Panthera cue butts", unitNoun: "cue", color: "var(--line-WOOD)", stations: [] },
 };
@@ -374,8 +375,12 @@ function derive(u) {
   }
   const resting = !!(restUntil && today() < restUntil);
   const hold = S.holds.find(x => x.unitDoc === u.id && !x.released);
-  const ready = complete && !u.status && !hold;
-  return { done, total: st.length, complete, next, zone, restUntil, resting, hold, ready };
+  const qty = u.qty ?? 1, released = u.qtyReleased || 0, out = u.qtyOut || 0;
+  const closed = u.status === "RELEASED" || u.status === "REJECTED" || u.status === "B-GRADE";
+  const remaining = closed ? 0 : Math.max(0, qty - released - out);
+  const partial = !closed && (released + out) > 0 && remaining > 0;
+  const ready = complete && !u.status && !hold && remaining > 0;
+  return { done, total: st.length, complete, next, zone, restUntil, resting, hold, ready, remaining, released, partial, isCart: qty > 1 || !!cfg.partialRelease };
 }
 const unitsOf = line => S.units.filter(u => u.line === line).sort((a, b) => (a.order ?? 0) - (b.order ?? 0) || a.unitId.localeCompare(b.unitId));
 
@@ -468,8 +473,9 @@ function renderFloorTable() {
     return;
   }
   const canTick = S.canWrite !== false;
+  const cart = cfg.unitNoun === "cart" || !!cfg.partialRelease;
   const thead = h("thead", null, h("tr", null,
-    h("th", null, cfg.unitNoun === "cart" ? "Cart" : "Unit"), h("th", null, "WO"), h("th", null, "SKU"), h("th", null, "Serial"), h("th", { class: "num" }, "Qty"), h("th", null, "Zone"), h("th", null, "Target"),
+    h("th", null, cfg.unitNoun === "cart" ? "Cart" : "Unit"), h("th", null, "WO"), h("th", null, "SKU"), cart ? null : h("th", null, "Serial"), h("th", { class: "num" }, "Qty"), cart ? h("th", { class: "num", title: "Released to date" }, "Rel") : null, cart ? h("th", { class: "num", title: "Left on the cart" }, "Left") : null, h("th", null, "Zone"), h("th", null, "Target"),
     st.map(s => h("th", { class: "tick-cell", title: `${s.name}${s.restDays ? ` · rest ${s.restDays} d after` : ""}` }, s.id)),
     h("th", null, "Rest"), h("th", null, "Status"), h("th", null, "")));
   const tbody = h("tbody");
@@ -479,12 +485,12 @@ function renderFloorTable() {
       lastBatch = u.batch;
       const inBatch = rows.filter(([v]) => v.batch === u.batch);
       const tgt = inBatch.map(([v]) => v.target).filter(Boolean).sort()[0];
-      tbody.append(h("tr", { class: "grp" }, h("td", { colspan: 10 + st.length }, `${u.batch || "No batch"}   —   ${inBatch.length} ${cfg.unitNoun}${inBatch.length === 1 ? "" : "s"}${tgt ? `   —   Target ${fmtD(tgt)}` : ""}`)));
+      tbody.append(h("tr", { class: "grp" }, h("td", { colspan: 11 + st.length }, `${u.batch || "No batch"}   —   ${inBatch.length} ${cfg.unitNoun}${inBatch.length === 1 ? "" : "s"}${tgt ? `   —   Target ${fmtD(tgt)}` : ""}`)));
     }
     const done = u.status === "RELEASED" || u.status === "REJECTED" || u.status === "B-GRADE";
     const tr = h("tr", { class: `unitrow ${done ? "done" : ""} ${u.status === "REJECTED" ? "rejected" : ""}`, "data-line": u.line, style: `--lc:${cfg.color}` },
       h("td", { class: "idc" }, u.unitId), h("td", { class: "mono" }, u.wo || "—"), h("td", { title: u.sku }, (u.sku || "—").length > 34 ? u.sku.slice(0, 32) + "…" : (u.sku || "—")),
-      h("td", { class: "mono" }, u.serial || "—"), h("td", { class: "num" }, u.qty ?? 1), h("td", null, x.zone), h("td", null, fmtD(u.target)),
+      cart ? null : h("td", { class: "mono" }, u.serial || "—"), h("td", { class: "num" }, u.qty ?? 1), cart ? h("td", { class: "num" }, x.released || "") : null, cart ? h("td", { class: "num" }, done ? "" : x.remaining) : null, h("td", null, x.zone), h("td", null, fmtD(u.target)),
       st.map(s => h("td", { class: "tick-cell" }, h("button", { class: "tick", type: "button", "aria-pressed": String(!!(u.stations || {})[s.id]), "aria-label": `${s.id} ${u.unitId}`, disabled: !canTick || done, onclick: () => toggleStation(u, s), html: ICON.check }))),
       h("td", null, x.resting ? h("span", { class: "pill pill-rest" }, `Rest · ${fmtShort(x.restUntil)}`) : (x.restUntil && !u.status ? h("span", { class: "pill pill-muted" }, "Rested") : "")),
       h("td", null, statusPill(u, x)),
@@ -496,7 +502,9 @@ function renderFloorTable() {
 function statusPill(u, x) {
   if (x.hold) return h("span", { class: "pill pill-rest" }, "On hold");
   if (u.status) { const o = OUTCOMES[u.status] || { pill: "pill-muted" }; return h("span", { class: `pill ${o.pill}`, title: u.statusDate ? `${u.status} ${fmtD(u.statusDate)}` : u.status }, u.status.toLowerCase()); }
+  if (x.ready && x.partial) return h("span", { class: "pill pill-run" }, `Partial · ${x.remaining} left`);
   if (x.ready) return h("span", { class: "pill pill-run" }, "Ready for QC");
+  if (x.partial) return h("span", { class: "pill pill-info" }, `${x.remaining} left · next ${x.next ? x.next.id : ""}`);
   if (x.done === 0) return h("span", { class: "pill pill-muted" }, "Not started");
   return h("span", { class: "pill pill-muted" }, `Next ${x.next ? x.next.id : ""}`);
 }
@@ -523,63 +531,162 @@ function confirmInline(msg) { // no confirm() in the viewer: a toast with a conf
 }
 
 // ============================================================ QC drawer
+const DISPS = [["REWORK", "Rework"], ["B-GRADE", "B-Grade"], ["REJECT", "Reject"]];
+function qualityCodes(cfg) { const q = cfg.quality; return q && (q.defectTypes || []).length ? q : null; }
+function sel(id, options, value, placeholder) {
+  const el = h("select", { class: "input", id }, placeholder ? h("option", { value: "" }, placeholder) : null,
+    options.map(o => h("option", { value: o, selected: o === value }, o)));
+  return el;
+}
+function lineSummary(d) {
+  let t = `${d.qty}x ${d.defect}`;
+  if (d.location && d.location !== "Not Specified") t += ` (${d.location})`;
+  if (d.op) t += ` at op ${d.op}`;
+  if (d.root) t += ` - ${d.root}`;
+  if (d.note) t += `; ${d.note}`;
+  return t;
+}
+
 function openQC(queue) {
   if (!queue.length) return;
-  const u = queue[0], x = derive(u), cfg = lineCfg(u.line), st = cfg.stations || [];
-  const isCart = (u.qty ?? 1) > 1;
+  const u = queue[0], x = derive(u), cfg = lineCfg(u.line), st = cfg.stations || [], codes = qualityCodes(cfg);
+  const isCart = x.isCart, qty = u.qty ?? 1;
   const reasons = S.reasons.filter(r => (r.line === u.line || r.line === "ALL") && r.active !== false).sort((a, b) => (b.timesUsed || 0) - (a.timesUsed || 0));
   let outcome = x.complete && !isCart ? "RELEASED" : "";
-  const f = {};
-  const body = h("div", { class: "drawer-body" },
-    h("div", { class: "ctx" },
-      ctx("Unit", u.unitId), ctx("WO", u.wo || "—"), ctx("Target", fmtD(u.target)), ctx("Zone", x.zone), ctx("Next", x.complete ? "Complete" : (x.next ? x.next.id : "—")), ctx("Qty", u.qty ?? 1)),
-    h("div", { class: "mono", style: "white-space:normal" }, u.sku || ""),
-    field("Serial number", f.serial = h("input", { class: "input big", id: "qcSerial", autocomplete: "off", placeholder: "Scan or type", value: u.serial || "" }), isCart ? "Optional for a cart." : "Required to release; optional otherwise."),
-    isCart
-      ? h("div", { class: "field" }, h("label", null, "Split this cart"), h("div", { class: "split" },
-          numField("Rework", f.rework = h("input", { class: "input", type: "number", min: 0, value: 0, id: "qcRework" })),
-          numField("B-Grade", f.bgrade = h("input", { class: "input", type: "number", min: 0, value: 0, id: "qcBgrade" })),
-          numField("Reject", f.reject = h("input", { class: "input", type: "number", min: 0, value: 0, id: "qcReject" })),
-          numField("Hold", f.holdq = h("input", { class: "input", type: "number", min: 0, value: 0, id: "qcHoldQ" }))),
-        h("div", { class: "total" }, h("span", null, "Releasing to inventory"), h("b", { id: "qcRelTotal" }, u.qty)))
-      : h("div", { class: "field" }, h("label", null, "Outcome"), h("div", { class: "opts", id: "qcOpts" },
-          Object.entries(OUTCOMES).map(([k, o]) => h("button", { type: "button", class: "opt", "data-k": k, "aria-pressed": String(outcome === k), onclick: () => { outcome = k; body.querySelectorAll(".opt").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.k === k))); refreshHint(); } }, h("b", null, o.label), h("span", null, o.help))))),
-    h("div", { class: "row2" },
-      field("Station", f.station = h("select", { class: "input", id: "qcStation" }, st.map(s => h("option", { value: s.id, selected: s.id === (x.next ? x.next.id : (st[st.length - 1] || {}).id) }, `${s.id} · ${s.name}`))), ""),
-      field("Date", f.date = h("input", { class: "input", type: "date", id: "qcDate", value: isoDate(today()) }), "")),
-    field("Reason", f.reason = h("input", { class: "input", id: "qcReason", list: "qcReasonList", autocomplete: "off", placeholder: "Type anything; picks from reasons used before" }), h("span", { id: "qcReasonHint" }, "")),
-    h("datalist", { id: "qcReasonList" }, reasons.map(r => h("option", { value: r.text }))),
-    field("Notes", f.notes = h("textarea", { class: "input", id: "qcNotes", placeholder: "What the inspector saw, what happens next" }), ""),
-  );
-  const refreshHint = () => {
-    const hint = body.querySelector("#qcReasonHint");
-    if (isCart) hint.textContent = "Required when any quantity is rework, B-grade, reject or hold.";
-    else hint.textContent = outcome === "RELEASED" ? "Optional for a release." : outcome === "ON HOLD" ? "Required. The unit shows On hold until someone returns it to the floor." : outcome ? "Required. It is remembered for next time." : "Pick an outcome first.";
-    const err = body.querySelector("#qcErr"); if (err) err.textContent = "";
-  };
-  if (isCart) { const upd = () => { const q = u.qty, t = ["rework", "bgrade", "reject", "holdq"].reduce((a, k) => a + (Number(f[k].value) || 0), 0); body.querySelector("#qcRelTotal").textContent = Math.max(0, q - t); }; ["rework", "bgrade", "reject", "holdq"].forEach(k => f[k].addEventListener("input", upd)); }
-  refreshHint();
-  const err = h("div", { class: "err", id: "qcErr", style: "min-height:16px" }); body.append(err);
+  const f = {}, lines = [];
+  const defaultOp = x.next ? x.next.id : (st[st.length - 1] || {}).id;
+
+  // ---- shared pieces
+  const serialField = field("Serial number", f.serial = h("input", { class: "input big", id: "qcSerial", autocomplete: "off", placeholder: "Scan or type", value: u.serial || "" }), isCart ? "Optional for a cart." : "Required to release; optional otherwise.");
+  const stationDate = h("div", { class: "row2" },
+    field(isCart ? "Op" : "Station", f.station = sel("qcStation", st.map(s => s.id), defaultOp), ""),
+    field("Date", f.date = h("input", { class: "input", type: "date", id: "qcDate", value: isoDate(today()) }), ""));
+  const notesField = field("Notes", f.notes = h("textarea", { class: "input", id: "qcNotes", placeholder: "What the inspector saw, what happens next" }), "");
+  const err = h("div", { class: "err", id: "qcErr", style: "min-height:16px" });
+
+  // ---- coded quality detail (defect / location / op / root cause / action)
+  const codeRow = (prefix) => codes ? h("div", { class: "opts", style: "grid-template-columns:repeat(auto-fit,minmax(140px,1fr))" },
+    field("Defect type", f[prefix + "defect"] = sel(prefix + "Defect", codes.defectTypes, "", "Pick"), ""),
+    field("Location", f[prefix + "loc"] = sel(prefix + "Loc", codes.locations || [], "", "Pick"), ""),
+    field("Detected at op", f[prefix + "op"] = sel(prefix + "Op", st.map(s => s.id), defaultOp), ""),
+    field("Root cause", f[prefix + "root"] = sel(prefix + "Root", codes.rootCauses || [], "", "Pick"), ""),
+    field("Corrective action", f[prefix + "act"] = sel(prefix + "Act", codes.correctiveActions || [], "", "Pick"), "")) : null;
+  const readCode = (prefix) => codes ? { defect: f[prefix + "defect"].value, location: f[prefix + "loc"].value, op: f[prefix + "op"].value, root: f[prefix + "root"].value, action: f[prefix + "act"].value } : null;
+
+  let body;
+  if (isCart) {
+    // ---- REVO-style cart release: a pass with dispositions, each disposition explained line by line
+    const num = (id) => h("input", { class: "input", type: "number", min: 0, value: 0, id });
+    f.pass = h("input", { class: "input", type: "number", min: 0, max: x.remaining, value: x.remaining, id: "qcPass" });
+    f.rework = num("qcRework"); f.bgrade = num("qcBgrade"); f.reject = num("qcReject");
+    f.hold = h("input", { type: "checkbox", id: "qcHold" });
+    const totals = h("div", { class: "total" }, h("span", null, "To inventory this pass"), h("b", { id: "qcRelTotal" }, x.remaining));
+    const after = h("div", { class: "hint", id: "qcAfter" }, "");
+    const alloc = h("div", { class: "hint", id: "qcAlloc" }, "");
+    const listEl = h("div", { id: "qcLines", style: "display:flex;flex-direction:column;gap:6px" });
+    const dispTotal = k => Number(f[k].value) || 0;
+    const allocated = disp => lines.filter(l => l.disposition === disp).reduce((a, l) => a + l.qty, 0);
+    const refresh = () => {
+      const pass = Number(f.pass.value) || 0, d = dispTotal("rework") + dispTotal("bgrade") + dispTotal("reject");
+      totals.querySelector("b").textContent = Math.max(0, pass - d);
+      after.textContent = `Left on the cart after this pass: ${Math.max(0, x.remaining - pass)} of ${qty}` + (pass > x.remaining ? ` — exceeds the ${x.remaining} left` : "") + (d > pass ? ` — dispositions (${d}) exceed the pass` : "");
+      if (codes) alloc.textContent = DISPS.map(([k, l]) => { const t = dispTotal(k === "B-GRADE" ? "bgrade" : k.toLowerCase()); return t ? `${l} ${allocated(k)} of ${t} explained` : null; }).filter(Boolean).join("  ·  ") || "No dispositions yet";
+      listEl.replaceChildren(...lines.map((l, i) => h("div", { class: "total", style: "padding:6px 10px;font-size:12px" }, h("span", null, h("b", { style: "font-size:12px;margin-right:8px" }, l.disposition), lineSummary(l)), h("button", { class: "btn btn-sm btn-ghost", type: "button", onclick: () => { lines.splice(i, 1); refresh(); } }, "Remove"))));
+      err.textContent = "";
+    };
+    ["pass", "rework", "bgrade", "reject"].forEach(k => f[k].addEventListener("input", refresh));
+    let detail = null;
+    if (codes) {
+      f.ldisp = sel("qcLDisp", DISPS.map(d => d[0]), "", "Disposition"); f.lqty = h("input", { class: "input", type: "number", min: 1, value: 1, id: "qcLQty" });
+      f.lnote = h("input", { class: "input", id: "qcLNote", placeholder: "Note (optional)" });
+      const addLine = () => {
+        const c = readCode("l"), d = { disposition: f.ldisp.value, qty: Number(f.lqty.value) || 0, ...c, note: f.lnote.value.trim() };
+        if (!d.disposition) return err.textContent = "Pick a disposition for the detail line.";
+        if (d.qty <= 0) return err.textContent = "Detail line quantity must be at least 1.";
+        if (!d.defect) return err.textContent = "Pick a defect type.";
+        lines.push(d); f.lqty.value = 1; f.lnote.value = ""; refresh();
+      };
+      detail = h("div", { class: "field" }, h("label", null, "Quality detail — one line per cause"),
+        h("div", { class: "hint" }, "Reject 10 shafts and it is rarely one defect. Add a line per cause; submit is blocked until each disposition's lines add up."),
+        h("div", { class: "row2" }, field("Disposition", f.ldisp, ""), field("Qty", f.lqty, "")),
+        codeRow("l"), f.lnote,
+        h("button", { class: "btn btn-standard btn-sm", type: "button", style: "align-self:flex-start", onclick: addLine }, h("span", { html: ICON.plus }), "Add line"),
+        listEl, alloc);
+    }
+    body = h("div", { class: "drawer-body" },
+      h("div", { class: "ctx" }, ctx("Cart", u.unitId), ctx("WO", u.wo || "—"), ctx("Cart qty", qty), ctx("Released to date", x.released), ctx("Left", x.remaining), ctx("Next", x.complete ? "Complete" : (x.next ? x.next.id : "—"))),
+      h("div", { class: "mono", style: "white-space:normal" }, u.sku || ""),
+      h("div", { class: "field" }, h("label", null, "This pass"), h("div", { class: "split" },
+        numField("Release qty", f.pass), numField("Rework", f.rework), numField("B-Grade", f.bgrade), numField("Reject", f.reject)), totals, after),
+      detail,
+      codes ? null : field("Reason", f.reason = h("input", { class: "input", id: "qcReason", list: "qcReasonList", autocomplete: "off", placeholder: "Required when any quantity is rework, B-grade or reject" }), ""),
+      codes ? null : h("datalist", { id: "qcReasonList" }, reasons.map(r => h("option", { value: r.text }))),
+      stationDate, serialField, notesField,
+      h("div", { class: "field" }, h("label", { style: "display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0" }, f.hold, "Put the rest of this cart on hold at this op"),
+        f.holdReason = h("input", { class: "input", id: "qcHoldReason", placeholder: "Hold reason (required when holding)" })),
+      err);
+    refresh();
+  } else {
+    // ---- serialised unit: one outcome
+    const opts = h("div", { class: "opts", id: "qcOpts" },
+      Object.entries(OUTCOMES).map(([k, o]) => h("button", { type: "button", class: "opt", "data-k": k, "aria-pressed": String(outcome === k), onclick: () => { outcome = k; opts.querySelectorAll(".opt").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.k === k))); refreshHint(); } }, h("b", null, o.label), h("span", null, o.help))));
+    const codePanel = codes ? h("div", { class: "field", id: "qcCodes" }, h("label", null, "Quality detail"), codeRow("u")) : null;
+    const reasonField = field("Reason", f.reason = h("input", { class: "input", id: "qcReason", list: "qcReasonList", autocomplete: "off", placeholder: "Type anything; picks from reasons used before" }), h("span", { id: "qcReasonHint" }, ""));
+    const refreshHint = () => {
+      const hint = body.querySelector("#qcReasonHint");
+      if (hint) hint.textContent = outcome === "RELEASED" ? "Optional for a release." : outcome === "ON HOLD" ? "Required. The unit shows On hold until someone returns it to the floor." : outcome ? "Required. It is remembered for next time." : "Pick an outcome first.";
+      if (codePanel) codePanel.hidden = !(outcome && outcome !== "RELEASED" && outcome !== "ON HOLD");
+      err.textContent = "";
+    };
+    body = h("div", { class: "drawer-body" },
+      h("div", { class: "ctx" }, ctx("Unit", u.unitId), ctx("WO", u.wo || "—"), ctx("Target", fmtD(u.target)), ctx("Zone", x.zone), ctx("Next", x.complete ? "Complete" : (x.next ? x.next.id : "—")), ctx("Qty", qty)),
+      h("div", { class: "mono", style: "white-space:normal" }, u.sku || ""),
+      serialField,
+      h("div", { class: "field" }, h("label", null, "Outcome"), opts),
+      stationDate, codePanel, reasonField,
+      h("datalist", { id: "qcReasonList" }, reasons.map(r => h("option", { value: r.text }))),
+      notesField, err);
+    refreshHint();
+  }
+
   const submit = async () => {
-    const serial = f.serial.value.trim().toUpperCase(), reason = f.reason.value.trim(), notes = f.notes.value.trim(), station = f.station.value, date = f.date.value || isoDate(today());
-    let qty = { released: 0, rework: 0, bgrade: 0, reject: 0, hold: 0 }, out = outcome;
+    const serial = f.serial.value.trim().toUpperCase(), notes = f.notes.value.trim(), station = f.station.value, date = f.date.value || isoDate(today());
+    let q;
     if (isCart) {
-      qty.rework = Number(f.rework.value) || 0; qty.bgrade = Number(f.bgrade.value) || 0; qty.reject = Number(f.reject.value) || 0; qty.hold = Number(f.holdq.value) || 0;
-      if ([qty.rework, qty.bgrade, qty.reject, qty.hold].some(v => v < 0)) return err.textContent = "Quantities cannot be negative.";
-      const t = qty.rework + qty.bgrade + qty.reject + qty.hold; if (t > u.qty) return err.textContent = `Rework + B-grade + reject + hold cannot exceed the cart quantity (${u.qty}).`;
-      qty.released = u.qty - t;
-      if (t > 0 && !reason) return err.textContent = "Enter a reason for the units not released (free text is fine).";
-      out = qty.released === u.qty ? "RELEASED" : qty.hold === u.qty ? "ON HOLD" : qty.reject === u.qty ? "REJECTED" : qty.rework === u.qty ? "REWORK" : qty.bgrade === u.qty ? "B-GRADE" : "RELEASED";
+      const pass = Number(f.pass.value) || 0, rework = Number(f.rework.value) || 0, bgrade = Number(f.bgrade.value) || 0, reject = Number(f.reject.value) || 0;
+      const holdCart = f.hold.checked, holdReason = f.holdReason.value.trim();
+      if ([pass, rework, bgrade, reject].some(v => v < 0)) return err.textContent = "Quantities cannot be negative.";
+      if (pass <= 0 && !holdCart) return err.textContent = "Enter a release quantity, or hold the cart.";
+      if (pass > x.remaining) return err.textContent = `Release qty exceeds the ${x.remaining} left on this cart.`;
+      const d = rework + bgrade + reject; if (d > pass) return err.textContent = `Rework + B-grade + reject (${d}) exceeds the release qty (${pass}).`;
+      if (holdCart && !holdReason) return err.textContent = "Enter a hold reason.";
+      let reason = "", details = [];
+      if (codes) {
+        for (const [k, l] of DISPS) { const t = k === "REWORK" ? rework : k === "B-GRADE" ? bgrade : reject, a = lines.filter(x => x.disposition === k).reduce((s, x) => s + x.qty, 0); if (t !== a) return err.textContent = `${l}: ${a} of ${t} explained. Add or fix detail lines until they add up.`; }
+        details = lines.map(l => ({ ...l }));
+        reason = lines.filter(l => l.disposition === "REJECT").map(lineSummary).join("; ") || lines.map(lineSummary).join("; ");
+      } else {
+        reason = f.reason.value.trim();
+        if (d > 0 && !reason) return err.textContent = "Enter a reason for the units not released (free text is fine).";
+      }
+      const released = pass - d, afterQ = x.remaining - pass;
+      const out = holdCart && released === 0 && d === 0 ? "ON HOLD" : released > 0 ? "RELEASED" : reject >= Math.max(rework, bgrade) ? "REJECTED" : rework >= bgrade ? "REWORK" : "B-GRADE";
+      q = { out, serial, reason, notes, station, date, qty: { released, rework, bgrade, reject, hold: holdCart ? afterQ : 0 }, pass, details, holdCart, holdReason, isCart: true };
     } else {
-      if (!out) return err.textContent = "Pick an outcome.";
-      if (out === "RELEASED" && !serial) return err.textContent = `A serial number is required to release a ${cfg.unitNoun}.`;
-      if (out !== "RELEASED" && !reason) return err.textContent = `Enter a reason for ${OUTCOMES[out].label.toLowerCase()} (free text is fine).`;
-      qty = { released: out === "RELEASED" ? 1 : 0, rework: out === "REWORK" ? 1 : 0, bgrade: out === "B-GRADE" ? 1 : 0, reject: out === "REJECTED" ? 1 : 0, hold: out === "ON HOLD" ? 1 : 0 };
+      if (!outcome) return err.textContent = "Pick an outcome.";
+      if (outcome === "RELEASED" && !serial) return err.textContent = `A serial number is required to release a ${cfg.unitNoun}.`;
+      let reason = f.reason.value.trim(), details = [];
+      if (codes && outcome !== "RELEASED" && outcome !== "ON HOLD") {
+        const c = readCode("u"); if (!c.defect) return err.textContent = "Pick a defect type.";
+        const d = { disposition: outcome === "REJECTED" ? "REJECT" : outcome, qty: 1, ...c, note: notes }; details = [d]; if (!reason) reason = lineSummary(d).replace(/^1x /, "");
+      }
+      if (outcome !== "RELEASED" && !reason) return err.textContent = `Enter a reason for ${OUTCOMES[outcome].label.toLowerCase()} (free text is fine).`;
+      q = { out: outcome, serial, reason, notes, station, date, qty: { released: outcome === "RELEASED" ? 1 : 0, rework: outcome === "REWORK" ? 1 : 0, bgrade: outcome === "B-GRADE" ? 1 : 0, reject: outcome === "REJECTED" ? 1 : 0, hold: outcome === "ON HOLD" ? 1 : 0 }, pass: 1, details, holdCart: outcome === "ON HOLD", holdReason: reason, isCart: false };
     }
     btnSubmit.disabled = true;
     try {
-      await writeQC(u, x, { out, serial, reason, notes, station, date, qty, isCart });
-      toast(`${u.unitId}: ${out.toLowerCase()} logged.`, "ok");
+      await writeQC(u, x, q);
+      toast(`${u.unitId}: ${q.out.toLowerCase()} logged.`, "ok");
       closeOverlay();
       if (queue.length > 1) openQC(queue.slice(1));
     } catch (e) { btnSubmit.disabled = false; err.textContent = "Could not save: " + (e && e.message || e); }
@@ -589,8 +696,8 @@ function openQC(queue) {
     h("div", { style: "display:flex;gap:8px" }, h("button", { class: "btn btn-cancel", type: "button", onclick: closeOverlay }, queue.length > 1 ? "Cancel all" : "Cancel"),
       queue.length > 1 ? h("button", { class: "btn btn-ghost", type: "button", onclick: () => { closeOverlay(); openQC(queue.slice(1)); } }, "Skip") : null),
     h("div", { style: "display:flex;gap:8px;align-items:center" }, queue.length > 1 ? h("span", { class: "mono" }, `${queue.length} in queue`) : null, btnSubmit));
-  openDrawer(h("div", { class: "drawer-head" }, h("div", { class: "eyebrow" }, `QC · ${u.line}`), h("h2", null, `${u.unitId}`), h("div", { class: "subline" }, `${cfg.name}${u.batch ? " · " + u.batch : ""}`)), body, foot);
-  setTimeout(() => f.serial.focus(), 50);
+  openDrawer(h("div", { class: "drawer-head" }, h("div", { class: "eyebrow" }, `${isCart ? "Release" : "QC"} · ${u.line}`), h("h2", null, `${isCart ? "Cart " : ""}${u.unitId}`), h("div", { class: "subline" }, `${cfg.name}${u.batch ? " · " + u.batch : ""}`)), body, foot);
+  setTimeout(() => (isCart ? f.pass : f.serial).focus(), 50);
 }
 function ctx(k, v) { return h("div", null, h("div", { class: "k" }, k), h("div", { class: "v", title: String(v) }, v)); }
 function field(label, control, hint) { return h("div", { class: "field" }, h("label", { for: control.id }, label), control, hint ? h("div", { class: "hint" }, hint) : null); }
@@ -600,14 +707,20 @@ async function writeQC(u, x, q) {
   const db = S.db; if (!db) throw new Error("not connected");
   const ts = new Date().toISOString();
   const ev = { ts, date: q.date, line: u.line, unitDoc: u.id, unitId: u.unitId, wo: u.wo || "", sku: u.sku || "", batch: u.batch || "", serial: q.serial, outcome: q.out, station: q.station, reason: q.reason, notes: q.notes, zone: x.zone,
-    qtyReleased: q.qty.released, qtyRework: q.qty.rework, qtyBGrade: q.qty.bgrade, qtyReject: q.qty.reject, qtyHold: q.qty.hold, by: S.me.id || null };
+    qtyPass: q.pass, qtyReleased: q.qty.released, qtyRework: q.qty.rework, qtyBGrade: q.qty.bgrade, qtyReject: q.qty.reject, qtyHold: q.qty.hold, details: q.details || [], by: S.me.id || null };
   await db.collection("events").add(ev);
   const upd = { updatedAt: ts, updatedBy: S.me.id || null };
   if (q.serial) upd.serial = q.serial;
-  if (q.out !== "ON HOLD" || q.isCart) { upd.status = q.out === "ON HOLD" ? "" : q.out; upd.statusDate = q.date; upd.statusBy = S.me.id || null; }
+  if (q.isCart) {
+    const qtyReleased = (u.qtyReleased || 0) + q.qty.released, qtyOut = (u.qtyOut || 0) + q.qty.rework + q.qty.bgrade + q.qty.reject;
+    const left = Math.max(0, (u.qty ?? 1) - qtyReleased - qtyOut);
+    Object.assign(upd, { qtyReleased, qtyOut });
+    if (left <= 0) { upd.status = qtyReleased > 0 ? "RELEASED" : q.out === "ON HOLD" ? "" : q.out; upd.statusDate = q.date; upd.statusBy = S.me.id || null; }
+    else { upd.status = ""; upd.statusDate = ""; }
+  } else if (q.out !== "ON HOLD") { upd.status = q.out; upd.statusDate = q.date; upd.statusBy = S.me.id || null; }
   await db.doc("units/" + u.id).update(upd);
-  if (q.qty.hold > 0) await db.collection("holds").add({ line: u.line, unitDoc: u.id, unitId: u.unitId, station: q.station, reason: [q.reason, q.notes].filter(Boolean).join(" — "), qty: q.qty.hold, dateHeld: q.date, released: false, by: S.me.id || null, ts });
-  if (q.reason) await learnReason(u.line, q.reason, q.date);
+  if (q.holdCart && q.qty.hold > 0) await db.collection("holds").add({ line: u.line, unitDoc: u.id, unitId: u.unitId, station: q.station, reason: [q.holdReason || q.reason, q.isCart ? "" : q.notes].filter(Boolean).join(" — "), qty: q.qty.hold, dateHeld: q.date, released: false, by: S.me.id || null, ts });
+  if (q.reason && !(q.details || []).length) await learnReason(u.line, q.reason, q.date);
 }
 async function learnReason(line, text, date) {
   const key = seg(`${line}_${text.toLowerCase().replace(/\s+/g, "_")}`);
@@ -760,7 +873,12 @@ function renderLines(main) {
   const since = isoDate(addDays(monday(t), -7 * 12));
   ids.forEach(id => {
     const m = new Map();
-    for (const e of S.events) if (e.line === id && e.date >= since && (e.qtyReject || 0) > 0) { const k = (e.reason || "(no reason recorded)").trim(); m.set(k, (m.get(k) || 0) + e.qtyReject); }
+    for (const e of S.events) {
+      if (e.line !== id || e.date < since) continue;
+      const coded = (e.details || []).filter(d => d.disposition === "REJECT" && d.qty > 0);
+      if (coded.length) { for (const d of coded) { const k = d.defect + (d.location && d.location !== "Not Specified" ? ` (${d.location})` : ""); m.set(k, (m.get(k) || 0) + d.qty); } }
+      else if ((e.qtyReject || 0) > 0) { const k = (e.reason || "(no reason recorded)").trim(); m.set(k, (m.get(k) || 0) + e.qtyReject); }
+    }
     const list = [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6), tot = [...m.values()].reduce((a, b) => a + b, 0);
     grid.append(h("div", { class: "card span4" }, h("div", { class: "card-head" }, h("h2", null, `${id} · why rejected`), h("span", { class: "meta" }, `${tot} rejected · 13 wk`)),
       h("div", { class: "card-body pareto", style: `--lc:${lineCfg(id).color}` }, list.length ? h("ul", null, list.map(([k, v]) => h("li", null, h("span", { style: "white-space:normal" }, k), h("span", { class: "num" }, `${v} · ${pct(v / tot)}`), h("div", { class: "bar" }, h("i", { style: `width:${(v / list[0][1]) * 100}%` }))))) : h("div", { class: "empty", style: "padding:16px" }, h("p", null, "No rejects in the last 13 weeks.")))));
@@ -824,6 +942,11 @@ function openSetup() {
     const cfg = lines[pick];
     body.append(h("div", { class: "seg" }, Object.keys(lines).map(id => h("button", { type: "button", "aria-pressed": String(pick === id), style: `--c:${lines[id].color || "var(--faint)"}`, onclick: () => { pick = id; draw(); } }, h("i"), id))));
     body.append(h("div", { class: "row2" }, field("Line name", h("input", { class: "input", id: "suName", value: cfg.name || "", oninput: e => cfg.name = e.target.value }), ""), field("Unit noun", h("input", { class: "input", id: "suNoun", value: cfg.unitNoun || "", oninput: e => cfg.unitNoun = e.target.value }), "cart · table · cue")));
+    body.append(h("div", { class: "field" }, h("label", { style: "display:flex;gap:8px;align-items:center;text-transform:none;letter-spacing:0" }, h("input", { type: "checkbox", checked: !!cfg.partialRelease, onchange: e => cfg.partialRelease = e.target.checked }), "Units are carts that release in passes (quantity split at QC)")));
+    cfg.quality = cfg.quality || { defectTypes: [], locations: [], rootCauses: [], correctiveActions: [] };
+    body.append(h("div", { class: "field" }, h("label", null, "Quality codes (one per line; leave Defect types empty for free-text reasons)"),
+      h("div", { class: "opts", style: "grid-template-columns:repeat(auto-fit,minmax(150px,1fr))" }, [["defectTypes", "Defect types"], ["locations", "Locations"], ["rootCauses", "Root causes"], ["correctiveActions", "Corrective actions"]].map(([k, l]) =>
+        field(l, h("textarea", { class: "input", id: "suq_" + k, style: "min-height:120px;font-size:12px", value: (cfg.quality[k] || []).join("\n"), oninput: e => cfg.quality[k] = e.target.value.split("\n").map(t => t.trim()).filter(Boolean) }), "")))));
     const tbl = h("table", { class: "setup-table" }, h("thead", null, h("tr", null, h("th", null, "Id"), h("th", null, "Station"), h("th", null, "Zone"), h("th", null, "Rest days after"), h("th", null, ""))),
       h("tbody", null, (cfg.stations || []).map((s, i) => h("tr", null, h("td", null, h("input", { class: "w-s", value: s.id, oninput: e => s.id = e.target.value.trim() })), h("td", null, h("input", { value: s.name || "", oninput: e => s.name = e.target.value })), h("td", null, h("input", { value: s.zone || "", oninput: e => s.zone = e.target.value })), h("td", null, h("input", { class: "w-s", type: "number", min: 0, value: s.restDays || 0, oninput: e => s.restDays = Number(e.target.value) || 0 })),
         h("td", null, h("button", { class: "btn btn-sm btn-ghost", type: "button", onclick: () => { cfg.stations.splice(i, 1); draw(); } }, "Remove"))))));
@@ -862,7 +985,8 @@ $("#btnHelp").addEventListener("click", () => openPanel(h("div", { class: "drawe
   h("div", { class: "drawer-body", style: "font-size:13px;line-height:1.6" },
     h("p", { style: "margin:0" }, h("b", null, "Floor"), " — one row per serialised unit (or cart on REVO). Tick a station when it completes; the tick is shared with everyone instantly. When every station is ticked the row says Ready for QC."),
     h("p", { style: "margin:0" }, h("b", null, "Rest"), " — on WOOD, ticking a turning stage starts its rest clock. The row shows Rest until the date; the next station can still be ticked, the board just tells you the wood is not ready."),
-    h("p", { style: "margin:0" }, h("b", null, "QC"), " — serial, outcome (Release, B-Grade, Rework, Reject, Hold), station, a free-text reason and notes. Every submit writes one event to the Log; reasons are remembered and offered next time. A cart is split by quantities instead."),
+    h("p", { style: "margin:0" }, h("b", null, "QC"), " — serial, outcome (Release, B-Grade, Rework, Reject, Hold), station, a reason and notes. Every submit writes one event to the Log; free-text reasons are remembered and offered next time."),
+    h("p", { style: "margin:0" }, h("b", null, "Cart release (REVO)"), " — a cart releases in passes. Enter the release qty, then rework, B-grade and reject out of it; what is left to inventory is computed. Each disposition is explained line by line with the quality codes (defect, location, op, root cause, action) and the pass cannot be submitted until the lines add up. The cart stays on the board until nothing is left on it."),
     h("p", { style: "margin:0" }, h("b", null, "Holds"), " — a held unit shows On hold on the board until someone returns it to the floor."),
     h("p", { style: "margin:0" }, h("b", null, "Plan"), " — planned starts per SKU per week. Lines compares it with what was released."),
     h("p", { style: "margin:0" }, h("b", null, "Lines"), " — the manager's view: planned vs released, first pass yield, reject and rework rates against targets, 13-week trends and the reasons behind rejects."),

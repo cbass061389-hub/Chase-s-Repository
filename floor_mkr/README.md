@@ -42,7 +42,23 @@ Setup panel: line names, stations in order with rest days, learned reasons with 
 
 Seeded on 8 Nov 2026 from the TABLE Floor (70 tables, WEEK 1-9, six fully ticked) and the
 WOOD batch plan (84 cues, three batches, 15 plan weeks), plus twelve starter wood reasons.
-REVO has its 13 ops as stations and no units: add the first carts from the board.
+
+REVO reseeded on 13 Nov 2026 from `Revo_Production - New.xlsm`: the 15-op sequence in floor
+order (IC, 10, 20, 30, 100, ASSYM, 40, 110, 50, 60, 70, 120, 130, 160, FQC; cure after 100 and
+40), the Quality_Codes lists (defect type, location, root cause, corrective action), 39 carts
+from the REVO Floor with their op ticks and released-to-date, 18 holds (2 open), the Production
+Plan from the week of 9 Nov (Friday week-ends converted to Monday week-starts), and 187 release
+passes since 10 Aug with the Reject Log descriptions attached. `tools/seed_revo.py` regenerates it.
+
+### Cart lines (REVO)
+
+A line flagged `partialRelease` treats a unit as a cart that releases in passes, mirroring the
+REVO release form: release qty for the pass, then rework / B-grade / reject out of it, to
+inventory computed, left-on-cart after the pass. When the line has quality codes, every
+disposition is explained line by line (qty, defect type, location, detected op, root cause,
+corrective action, note) and submit is blocked until the lines add up to each disposition.
+Events carry `details[]`; the Lines Pareto counts coded reject lines by defect type.
+Units carry `qtyReleased` and `qtyOut`; the cart closes when nothing is left.
 
 `tools/seed_from_workbooks.py` regenerates the seed documents; they are written with the
 ArtifactData tool, never from the page.
